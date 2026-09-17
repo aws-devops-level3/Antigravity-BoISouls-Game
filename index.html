@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Ashen One - Dark Souls 2D</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=MedievalSharp&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/style.css" />
+  <script>
+    window.addEventListener('error', function(e) {
+      console.error('Captured window error:', e);
+      var box = document.getElementById('debug-err-box');
+      if (!box) {
+        box = document.createElement('div');
+        box.id = 'debug-err-box';
+        box.style.position = 'fixed';
+        box.style.top = '10px';
+        box.style.left = '10px';
+        box.style.right = '10px';
+        box.style.zIndex = '999999';
+        box.style.background = 'rgba(180, 20, 20, 0.95)';
+        box.style.color = '#ffffff';
+        box.style.padding = '14px';
+        box.style.borderRadius = '6px';
+        box.style.fontFamily = 'monospace';
+        box.style.fontSize = '12px';
+        box.style.whiteSpace = 'pre-wrap';
+        box.style.boxShadow = '0 4px 20px rgba(0,0,0,0.8)';
+        document.body.appendChild(box);
+      }
+      box.textContent = 'Spelfel upptäcktes: ' + (e.message || e.error) + '\n' + (e.filename || '') + ':' + (e.lineno || '');
+    });
+  </script>
+</head>
+<body>
+  <div id="game-container"></div>
+  <div id="controls-hint">
+    <div class="hint-title">KONTROLLER</div>
+    <div class="hint-row"><span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> &mdash; 8-vägs rörelse</div>
+    <div class="hint-row"><span class="key">SKIFT</span> &mdash; Snabbrörelse / Sprint</div>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
