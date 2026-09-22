@@ -15,6 +15,7 @@ export default class BootScene extends Phaser.Scene {
     this.createEmberTexture();
     this.createDustTexture();
     this.createLightTexture();
+    this.createSlashTexture();
 
     this.scene.start('GameScene');
   }
@@ -312,6 +313,53 @@ export default class BootScene extends Phaser.Scene {
 
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 512, 512);
+
+    canvas.refresh();
+  }
+
+  // Greatsword Sweeping Slash Arc Texture (96x96)
+  createSlashTexture() {
+    const canvas = this.textures.createCanvas('slash_arc', 96, 96);
+    const ctx = canvas.getContext();
+
+    // Center of sweep on the left edge
+    const ox = 20;
+    const oy = 48;
+    const rOuter = 70;
+    const rInner = 26;
+    const startAngle = -Math.PI * 0.32;
+    const endAngle = Math.PI * 0.32;
+
+    // Glowing blade sweep gradient
+    const grad = ctx.createRadialGradient(ox, oy, rInner, ox, oy, rOuter);
+    grad.addColorStop(0, 'rgba(255, 240, 200, 0.05)');
+    grad.addColorStop(0.45, 'rgba(200, 210, 240, 0.5)');
+    grad.addColorStop(0.85, 'rgba(255, 255, 255, 0.9)');
+    grad.addColorStop(1, 'rgba(255, 180, 70, 0.95)');
+
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(ox, oy, rOuter, startAngle, endAngle, false);
+    ctx.arc(ox, oy, rInner, endAngle, startAngle, true);
+    ctx.closePath();
+    ctx.fill();
+
+    // Razor-sharp incandescent outer edge
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 3;
+    ctx.shadowColor = '#ff8800';
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.arc(ox, oy, rOuter - 1, startAngle, endAngle);
+    ctx.stroke();
+
+    // Secondary inner motion streak
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
+    ctx.lineWidth = 1.5;
+    ctx.shadowBlur = 0;
+    ctx.beginPath();
+    ctx.arc(ox, oy, rOuter - 9, startAngle * 0.8, endAngle * 0.8);
+    ctx.stroke();
 
     canvas.refresh();
   }

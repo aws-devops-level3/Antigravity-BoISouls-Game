@@ -25,6 +25,8 @@ Ett stämningsfullt mörkt 2D-actionrollspel i HTML5 och Phaser 3 med estetik, r
 | <kbd>D</kbd> | Gå åt höger |
 | <kbd>W</kbd>+<kbd>D</kbd>, <kbd>W</kbd>+<kbd>A</kbd>, <kbd>S</kbd>+<kbd>D</kbd>, <kbd>S</kbd>+<kbd>A</kbd> | Diagonala riktningar (8-vägs förflyttning) |
 | <kbd>SKIFT</kbd> | Sprint / Snabbrörelse (förbrukar Stamina) |
+| <kbd>MELLANSLAG / SPACE</kbd> | **Dodge Roll** (15% staminakostnad, i-frames, efterbilder) |
+| <kbd>VÄNSTERKLICK</kbd> | **Svärdsattack** (mot muspekare i 100° kon, lunge, 20% stamina) |
 
 ---
 
@@ -36,6 +38,8 @@ Ett stämningsfullt mörkt 2D-actionrollspel i HTML5 och Phaser 3 med estetik, r
   - Fysisk tyngd i stegen (acceleration/retardation).
   - Vändning mot rörelseriktning samt fotstegsdamm och svajig gångcykel.
   - Sprint med <kbd>SKIFT</kbd> som förbrukar uthållighet (Stamina) och regenereras automatiskt.
+  - **Dodge Roll med <kbd>SPACE</kbd>**: Rullningsanimation (360° somersault), 15% staminakostnad (15 av 100), i-frames (odödlighetsfönster), eteriska efterbilder (*ghost trail*) och dammpuff.
+  - **Svärdsattack med Vänsterklick**: Riktat storsvärdshugg mot muspekarens position i en 100-graders kon, svepande glödande svärdsbåge, flygande cinders/gnistor, kraftfullt framåtkliv (*lunge*), subtilt skärmskak och 20% staminakostnad.
 - **Gotisk spelmiljö ("Eldens Helgedom")**:
   - Detaljerat stengolv och arkitektoniska pelare med kollisionshantering.
   - Central **Bonfire** med det tvinnade svärdet och pulserande sken.
@@ -49,10 +53,10 @@ Ett stämningsfullt mörkt 2D-actionrollspel i HTML5 och Phaser 3 med estetik, r
 
 ---
 
-## 🗺️ Nästa steg / Färdplan inför imorgon
+## 🗺️ Nästa steg / Färdplan
 
-1. **Dodge Roll (Rullning med Space)**: Rullningsanimation med i-frames (odödlighetsfönster) och staminakostnad.
-2. **Svärdsattack**: Vänsterklick för primärt svärdshugg med träffbox och ljudeffekter.
+1. ✅ **Dodge Roll (Rullning med Space)**: Rullningsanimation med i-frames, 15% staminakostnad och efterbilder (*klart!*).
+2. ✅ **Svärdsattack**: Vänsterklick för primärt svärdshugg mot muspekare i en kon, träffområdesgeometri och ljusglöd (*klart!*).
 3. **Fiender & AI**: Första fientliga riddaren/vandraren med patrull- och attackbeteende.
 4. **Ljud & Musik**: Atmosfäriskt mörkt ambientljud och svärdskling.
 
