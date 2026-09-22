@@ -323,13 +323,13 @@ export default class GameScene extends Phaser.Scene {
   createFireParticles(x, y, isLarge = false) {
     // 1. Animated fire flame particles: yellow, orange, and red; drifting slowly upward; fading out
     const flameEmitter = this.add.particles(x, y, 'flame_particle', {
-      speedY: { min: isLarge ? -22 : -16, max: isLarge ? -10 : -6 },
+      speedY: { min: isLarge ? -24 : -18, max: isLarge ? -10 : -8 },
       speedX: { min: isLarge ? -5 : -3, max: isLarge ? 5 : 3 },
-      scale: { start: isLarge ? 0.58 : 0.38, end: 0.08 },
-      alpha: { start: 0.85, end: 0 },
+      scale: { start: isLarge ? 0.65 : 0.48, end: 0.08 },
+      alpha: { start: 0.9, end: 0 },
       tint: [0xffffff, 0xfffa65, 0xffbe76, 0xf0932b, 0xff793f, 0xeb4d4b],
-      lifespan: { min: 320, max: isLarge ? 620 : 480 },
-      frequency: isLarge ? 80 : 170,
+      lifespan: { min: 350, max: isLarge ? 650 : 520 },
+      frequency: isLarge ? 75 : 95,
       blendMode: 'ADD',
     });
     flameEmitter.setDepth(5);
@@ -354,13 +354,55 @@ export default class GameScene extends Phaser.Scene {
   createLighting() {
     if (this.floor === 1) {
       const s = this.mapScale;
+
+      // 1. Exact, pixel-perfect lantern flame positions in the Crypt (Spawn Room)
+      const cryptLanterns = [
+        // West wall lanterns (4)
+        { x: 233, y: 641 },
+        { x: 228, y: 838 },
+        { x: 237, y: 1038 },
+        { x: 234, y: 1227 },
+        // North wall alcove lanterns (4)
+        { x: 372, y: 571 },
+        { x: 564, y: 573 },
+        { x: 826, y: 572 },
+        { x: 1025, y: 572 },
+        // South wall alcove & doorway lanterns (4)
+        { x: 374, y: 1298 },
+        { x: 566, y: 1298 },
+        { x: 830, y: 1298 },
+        { x: 1154, y: 1298 },
+      ];
+
+      cryptLanterns.forEach((cl) => {
+        // Subtle soft radial floor glow behind lantern (depth 1, alpha 0.15)
+        const glow = this.add.image(cl.x, cl.y, 'soft_light_glow');
+        glow.setDisplaySize(32, 32);
+        glow.setAlpha(0.15);
+        glow.setDepth(1);
+        glow.setBlendMode(Phaser.BlendModes.ADD);
+
+        // Lively animated fire particles placed dead-center on the lantern flame
+        this.createFireParticles(cl.x, cl.y, false);
+      });
+
+      // 2. Central Bonfire Hearth beside the sarcophagus in Crypt
+      const bx = Math.round(1550 * s); // 651
+      const by = Math.round(2527 * s); // 1061
+      const bonfireGlow = this.add.image(bx, by, 'soft_light_glow');
+      bonfireGlow.setDisplaySize(44, 44);
+      bonfireGlow.setAlpha(0.15);
+      bonfireGlow.setDepth(1);
+      bonfireGlow.setBlendMode(Phaser.BlendModes.ADD);
+
+      this.createFireParticles(bx, by - 2, true);
+
+      // 3. Torches, hearths, and burning book tables in the other rooms (Grand Hall, Lodge, Library)
       const vttData = this.cache.json.get('SoulsChapel_vtt');
       const lightsList = (vttData && Array.isArray(vttData.lights)) ? vttData.lights : level1Data.lights;
       const ppg = (vttData && vttData.resolution && vttData.resolution.pixels_per_grid) || 150;
 
-      // Deduplicate / cluster overlapping lights that are close together (< 80 px)
-      // to completely prevent multiple lights stacking into bright spots
-      const clusteredLights = [];
+      const otherLights = [];
       lightsList.forEach(l => {
         let x, y, range, color;
         if (l.position) {
@@ -374,43 +416,41 @@ export default class GameScene extends Phaser.Scene {
           range = (l.dim || 20) / 4;
           color = l.tintColor;
         }
-        const existing = clusteredLights.find(c => Math.hypot(c.x - x, c.y - y) < 80);
-        if (!existing) {
-          clusteredLights.push({ x, y, range, color });
+        // Exclude the crypt room (x * s <= 1180) as it is fully and accurately handled above
+        if (x * s > 1180) {
+          const existing = otherLights.find(c => Math.hypot(c.x - x, c.y - y) < 80);
+          if (!existing) {
+            otherLights.push({ x, y, range, color });
+          }
         }
       });
 
-      // Render lights and animated fire particles across all fire sources
-      clusteredLights.forEach((l) => {
+      otherLights.forEach((l) => {
         const lx = Math.round(l.x * s);
         const ly = Math.round(l.y * s);
 
         const isFountain = (typeof l.color === 'string' && l.color.toLowerCase().includes('bff4ff')) || Math.hypot(l.x - 4528, l.y - 3217) < 60;
 
         if (isFountain) {
-          // Cyan Water Fountain Glow in Grand Checkered Hall (subtle, transparent radial glow)
+          // Cyan Water Fountain Glow
           const fountainGlow = this.add.image(lx, ly, 'soft_cyan_glow');
           fountainGlow.setDisplaySize(48, 48);
           fountainGlow.setAlpha(0.15);
           fountainGlow.setDepth(1);
           fountainGlow.setBlendMode(Phaser.BlendModes.ADD);
         } else {
-          // 1. Soft, transparent radial gradient light on the floor (behind characters & fire)
+          // Soft floor light glow
           const radius = Math.max(12, Math.round(l.range * ppg * s * 0.11));
           const diameter = radius * 2;
-
           const glow = this.add.image(lx, ly, 'soft_light_glow');
           glow.setDisplaySize(diameter, diameter);
           glow.setAlpha(0.15);
-          glow.setDepth(1); // BEHIND fire (depth 5) and characters (depth 10+)
+          glow.setDepth(1);
           glow.setBlendMode(Phaser.BlendModes.ADD);
 
-          // 2. Animated 2D Fire Particle System positioned right on top of the static fire
-          const isBonfire = Math.hypot(l.x - 1550, l.y - 2527) < 80;
+          // Animated fire particles
           const isFireplace = Math.hypot(l.x - 5740, l.y - 3900) < 100;
-          const isLargeFire = isBonfire || isFireplace;
-
-          this.createFireParticles(lx, ly - 2, isLargeFire);
+          this.createFireParticles(lx, ly - 2, isFireplace);
         }
       });
     } else {
