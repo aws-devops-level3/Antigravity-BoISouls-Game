@@ -25,36 +25,38 @@ export default class GameScene extends Phaser.Scene {
     this.hatchUnlocked = false;
     this.isTransitioning = false;
 
-    // 1. Render Handcrafted Gothic Dungeon Battlemap Background
-    this.add.image(worldWidth / 2, worldHeight / 2, 'dungeon_bg').setOrigin(0.5, 0.5);
+    // 1. Render Background based on active floor
+    // Floor 1: Gothic Dungeon Hall (dungeon_bg)
+    // Floor 2: Torture Chamber / Dining Crypt (dungeon_bg_room2)
+    const bgKey = this.floor === 1 ? 'dungeon_bg' : 'dungeon_bg_room2';
+    this.add.image(worldWidth / 2, worldHeight / 2, bgKey).setOrigin(0.5, 0.5);
 
     // 2. Setup Collision Groups
     this.obstacles = this.physics.add.staticGroup();
 
-    // 3. Build Collision Boundaries matching the map props
+    // 3. Build Collision Boundaries matching the active floor's props
     this.buildObstacles(worldWidth, worldHeight);
 
-    // 4. Dynamic Lighting for Hearth and Column Candles
-    this.createHearthAndTorches();
+    // 4. Dynamic Lighting for active room
+    this.createLighting();
 
-    // 5. Spawn Ashen One (Player) on the Red Carpet in the lower hall
-    this.player = new Player(this, 988, 1260);
+    // 5. Spawn Ashen One (Player)
+    // Floor 1: Spawns in lower hall on carpet near hearth (988, 1260)
+    // Floor 2: Enters from the northern door (988, 200)
+    const spawnX = 988;
+    const spawnY = this.floor === 1 ? 1260 : 200;
+    this.player = new Player(this, spawnX, spawnY);
     this.player.souls = this.initialSouls;
     this.player.health = this.initialHealth;
 
-    // On Floor 2+, spawn a resting Bonfire near player spawn
-    if (this.floor > 1) {
-      this.createRestBonfire(1080, 1260);
-    }
-
-    // 6. Spawn Enemies (Hollow Knights & Cursed Wraiths)
+    // 6. Spawn Enemies
     this.enemies = this.add.group();
     this.knights = this.add.group();
     this.spawnEnemies();
 
     // 7. Physics Collisions
     this.physics.add.collider(this.player, this.obstacles);
-    this.physics.add.collider(this.knights, this.obstacles); // Knights collide with walls & pillars; ghosts phase through!
+    this.physics.add.collider(this.knights, this.obstacles); // Knights collide with walls & props; ghosts phase through!
     this.physics.add.collider(this.player, this.enemies);
 
     // 8. Ambient Floating Cinders
@@ -64,7 +66,7 @@ export default class GameScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
     this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
     this.cameras.main.setZoom(1.35);
-    this.cameras.main.fadeIn(600, 0, 0, 0);
+    this.cameras.main.fadeIn(700, 0, 0, 0);
 
     // 10. HUD System
     this.hud = new SoulsHUD(this);
@@ -72,10 +74,8 @@ export default class GameScene extends Phaser.Scene {
     // 11. Atmospheric Location Title Display
     if (this.floor === 1) {
       this.displayAreaTitle('FÖRBANNADE SALEN', 'The Accursed Hall - Våning 1');
-    } else if (this.floor === 2) {
-      this.displayAreaTitle('FÖRBANNADE KRYPTAN', 'The Accursed Crypt - Våning 2');
     } else {
-      this.displayAreaTitle('DJUPENS AVGRUND', `The Deep Abyss - Våning ${this.floor}`);
+      this.displayAreaTitle('TORTYRKAMMAREN', 'The Torture Chamber - Våning 2');
     }
 
     // Handle Window Resize
@@ -85,33 +85,30 @@ export default class GameScene extends Phaser.Scene {
   }
 
   buildObstacles(width, height) {
-    // Outer perimeter walls
+    // Outer perimeter walls (always present)
     this.createObstacle(width / 2, 10, width, 20); // Top wall
-    this.createObstacle(440, height - 10, 880, 20); // Bottom wall left of hearth
-    this.createObstacle(1570, height - 10, 940, 20); // Bottom wall right of hearth
+    this.createObstacle(width / 2, height - 10, width, 20); // Bottom wall
     this.createObstacle(10, height / 2, 20, height); // Left wall
     this.createObstacle(width - 10, height / 2, 20, height); // Right wall
 
-    // Central Stone Hearth / Fireplace (Bottom Center)
-    this.createObstacle(988, 1495, 230, 80);
-
-    // Left Large Round Wooden Pillar
-    this.createObstacle(738, 570, 160, 150);
-
-    // Right Large Round Wooden Pillar
-    this.createObstacle(1245, 880, 160, 150);
-
-    // Crates & Spiderwebbed Rubble (Top Left)
-    this.createObstacle(250, 220, 200, 180);
-
-    // Bookshelf & Scrolls (Top Right)
-    this.createObstacle(1750, 70, 160, 90);
-
-    // Heavy Reinforced Hatch on Far Left Wall (Initially locked)
-    this.hatchObstacle = this.createObstacle(75, 715, 100, 110);
-
-    // Stacked Barrels (Bottom Right)
-    this.createObstacle(1675, 1480, 210, 90);
+    if (this.floor === 1) {
+      // Room 1 Props
+      this.createObstacle(988, 1495, 230, 80); // Central Hearth
+      this.createObstacle(738, 570, 160, 150); // Left Round Pillar
+      this.createObstacle(1245, 880, 160, 150); // Right Round Pillar
+      this.createObstacle(250, 220, 200, 180); // Crates (Top Left)
+      this.createObstacle(1750, 70, 160, 90); // Bookshelf (Top Right)
+      this.hatchObstacle = this.createObstacle(75, 715, 100, 110); // Closed Hatch (Left)
+      this.createObstacle(1675, 1480, 210, 90); // Stacked Barrels (Bottom Right)
+    } else {
+      // Room 2 (Torture Chamber) Props
+      this.createObstacle(130, 160, 190, 250); // Torture Bed with corpse (Top Left)
+      this.createObstacle(75, 615, 110, 290); // Upper Shelf (Mid-West wall)
+      this.createObstacle(75, 1010, 110, 290); // Lower Shelf (South-West wall)
+      this.createObstacle(1435, 1300, 430, 240); // Large Dining Table & Chairs (Bottom Right)
+      this.createObstacle(1835, 175, 310, 260); // Smashed Barrels, Skeleton & Rubble (Top Right)
+      this.createObstacle(1970, 775, 130, 290); // Crumbling Stone Wall (Mid-East wall)
+    }
   }
 
   createObstacle(x, y, w, h) {
@@ -121,9 +118,11 @@ export default class GameScene extends Phaser.Scene {
     return rect;
   }
 
-  createHearthAndTorches() {
-    // Glowing Fireplace at bottom center (988, 1485)
-    if (this.add.pointlight && this.game.renderer.type === Phaser.WEBGL) {
+  createLighting() {
+    if (!this.add.pointlight || this.game.renderer.type !== Phaser.WEBGL) return;
+
+    if (this.floor === 1) {
+      // Room 1 Hearth Fireplace & Column Candles
       const hearthLight = this.add.pointlight(988, 1485, 0xff7711, 260, 0.75, 0.04);
       this.tweens.add({
         targets: hearthLight,
@@ -135,7 +134,6 @@ export default class GameScene extends Phaser.Scene {
         ease: 'Sine.easeInOut',
       });
 
-      // Warm candle light on the left wooden pillar
       const leftPillarLight = this.add.pointlight(738, 565, 0xffaa33, 140, 0.45, 0.06);
       this.tweens.add({
         targets: leftPillarLight,
@@ -146,7 +144,6 @@ export default class GameScene extends Phaser.Scene {
         ease: 'Sine.easeInOut',
       });
 
-      // Warm candle light on the right wooden pillar
       const rightPillarLight = this.add.pointlight(1245, 875, 0xffaa33, 140, 0.45, 0.06);
       this.tweens.add({
         targets: rightPillarLight,
@@ -156,103 +153,88 @@ export default class GameScene extends Phaser.Scene {
         repeat: -1,
         ease: 'Sine.easeInOut',
       });
+
+      this.add.particles(988, 1485, 'ember_spark', {
+        speed: { min: 25, max: 65 },
+        angle: { min: 240, max: 300 },
+        scale: { start: 1, end: 0.2 },
+        alpha: { start: 0.95, end: 0 },
+        lifespan: { min: 600, max: 1300 },
+        frequency: 50,
+        blendMode: 'ADD',
+      });
+    } else {
+      // Room 2 Wall Torch above the torture bed (305, 65)
+      const torchLight = this.add.pointlight(305, 65, 0xff8811, 220, 0.75, 0.05);
+      this.tweens.add({
+        targets: torchLight,
+        intensity: { from: 0.65, to: 0.88 },
+        radius: { from: 210, to: 240 },
+        duration: 300,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+
+      this.add.particles(305, 65, 'ember_spark', {
+        speed: { min: 15, max: 45 },
+        angle: { min: 240, max: 300 },
+        scale: { start: 0.8, end: 0.1 },
+        alpha: { start: 0.9, end: 0 },
+        lifespan: 800,
+        frequency: 80,
+        blendMode: 'ADD',
+      });
+
+      // Ambient Candlelight on the Dining Table (1435, 1290)
+      const tableLight = this.add.pointlight(1435, 1290, 0xffaa44, 180, 0.55, 0.06);
+      this.tweens.add({
+        targets: tableLight,
+        intensity: { from: 0.45, to: 0.62 },
+        duration: 380,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
     }
-
-    // Upward floating hearth flame embers
-    this.add.particles(988, 1485, 'ember_spark', {
-      speed: { min: 25, max: 65 },
-      angle: { min: 240, max: 300 },
-      scale: { start: 1, end: 0.2 },
-      alpha: { start: 0.95, end: 0 },
-      lifespan: { min: 600, max: 1300 },
-      frequency: 50,
-      blendMode: 'ADD',
-    });
-  }
-
-  createRestBonfire(x, y) {
-    const bonfire = this.add.sprite(x, y, 'bonfire');
-    bonfire.setDepth(y);
-
-    if (this.add.pointlight && this.game.renderer.type === Phaser.WEBGL) {
-      this.add.pointlight(x, y + 8, 0xff7722, 160, 0.6, 0.05);
-    }
-
-    this.add.particles(x, y + 8, 'ember_spark', {
-      speed: { min: 15, max: 40 },
-      angle: { min: 250, max: 290 },
-      scale: { start: 0.8, end: 0.1 },
-      alpha: { start: 0.8, end: 0 },
-      lifespan: 800,
-      frequency: 90,
-      blendMode: 'ADD',
-    });
-
-    // Proximity healing & refill
-    const restZone = this.add.zone(x, y, 60, 60);
-    this.physics.add.existing(restZone, true);
-    this.physics.add.overlap(this.player, restZone, () => {
-      if (this.player.health < this.player.maxHealth) {
-        this.player.health = this.player.maxHealth;
-        this.player.stamina = this.player.maxStamina;
-        this.displayBonfireLitBanner();
-      }
-    });
-  }
-
-  displayBonfireLitBanner() {
-    if (this.hasShownRestBanner) return;
-    this.hasShownRestBanner = true;
-
-    const cam = this.cameras.main;
-    const banner = this.add.text(cam.width / 2, cam.height * 0.4, 'LÄGERELD VILAD - HÄLSA ÅTERSTÄLLD', {
-      fontFamily: 'Cinzel, serif',
-      fontSize: '20px',
-      fontStyle: 'bold',
-      letterSpacing: 4,
-      color: '#ffa500',
-      stroke: '#000000',
-      strokeThickness: 3,
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(2000).setAlpha(0);
-
-    this.tweens.chain({
-      targets: banner,
-      tweens: [
-        { alpha: 1, duration: 600 },
-        { alpha: 1, duration: 1400 },
-        { alpha: 0, duration: 800, onComplete: () => banner.destroy() },
-      ],
-    });
   }
 
   spawnEnemies() {
-    // Floor 1: 3 Knights, 2 Ghosts
-    // Floor 2+: 4 Knights, 3 Ghosts
-    const knight1 = new Enemy(this, 630, 680);
-    const knight2 = new Enemy(this, 1420, 780);
-    const knight3 = new Enemy(this, 988, 380);
+    if (this.floor === 1) {
+      // Floor 1: 3 Knights, 2 Ghosts
+      const knight1 = new Enemy(this, 630, 680);
+      const knight2 = new Enemy(this, 1420, 780);
+      const knight3 = new Enemy(this, 988, 380);
 
-    const knightsList = [knight1, knight2, knight3];
-    if (this.floor > 1) {
-      knightsList.push(new Enemy(this, 1024, 760));
+      [knight1, knight2, knight3].forEach(k => {
+        this.knights.add(k);
+        this.enemies.add(k);
+      });
+
+      const ghost1 = new GhostEnemy(this, 380, 1050);
+      const ghost2 = new GhostEnemy(this, 1640, 400);
+
+      [ghost1, ghost2].forEach(g => {
+        this.enemies.add(g);
+      });
+    } else {
+      // Floor 2 (Torture Chamber): 3 Knights, 2 Ghosts positioned around room props
+      const knight1 = new Enemy(this, 460, 380); // Near torture bed
+      const knight2 = new Enemy(this, 1180, 1100); // Patrolling near dining table
+      const knight3 = new Enemy(this, 980, 700); // Patrolling the red carpet
+
+      [knight1, knight2, knight3].forEach(k => {
+        this.knights.add(k);
+        this.enemies.add(k);
+      });
+
+      const ghost1 = new GhostEnemy(this, 1680, 280); // Haunting the broken barrels & skeleton
+      const ghost2 = new GhostEnemy(this, 440, 1100); // Lurking by the potion shelves
+
+      [ghost1, ghost2].forEach(g => {
+        this.enemies.add(g);
+      });
     }
-
-    knightsList.forEach(k => {
-      this.knights.add(k);
-      this.enemies.add(k);
-    });
-
-    // Ghosts
-    const ghost1 = new GhostEnemy(this, 380, 1050);
-    const ghost2 = new GhostEnemy(this, 1640, 400);
-    const ghostsList = [ghost1, ghost2];
-    if (this.floor > 1) {
-      ghostsList.push(new GhostEnemy(this, 1200, 300));
-    }
-
-    ghostsList.forEach(g => {
-      this.enemies.add(g);
-    });
   }
 
   unlockHatch() {
@@ -344,7 +326,6 @@ export default class GameScene extends Phaser.Scene {
 
     bannerContainer.add([bg, mainTitle, subTitle]);
 
-    // Dramatic Dark Souls banner presentation
     this.tweens.chain({
       targets: bannerContainer,
       tweens: [
@@ -355,11 +336,58 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
+  displayVictoryBanner() {
+    if (this.hasShownVictoryBanner) return;
+    this.hasShownVictoryBanner = true;
+
+    const cam = this.cameras.main;
+    const bannerContainer = this.add.container(cam.width / 2, cam.height * 0.32);
+    bannerContainer.setScrollFactor(0);
+    bannerContainer.setDepth(2500);
+    bannerContainer.setAlpha(0);
+
+    const bg = this.add.graphics();
+    bg.fillStyle(0x060508, 0.75);
+    bg.fillRect(-cam.width / 2, -35, cam.width, 70);
+    bg.lineStyle(1.5, 0xc99e3a, 0.7);
+    bg.strokeLineShape(new Phaser.Geom.Line(-cam.width / 2, -35, cam.width / 2, -35));
+    bg.strokeLineShape(new Phaser.Geom.Line(-cam.width / 2, 35, cam.width / 2, 35));
+
+    const mainTitle = this.add.text(0, -6, 'KRYPTAN RENAD — SEGER', {
+      fontFamily: 'Cinzel, serif',
+      fontSize: '28px',
+      fontStyle: 'bold',
+      letterSpacing: 6,
+      color: '#ffd700',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5);
+
+    const subTitle = this.add.text(0, 20, 'Samtliga fasor i tortyrkammaren har fördrivits', {
+      fontFamily: 'Cinzel, serif',
+      fontSize: '13px',
+      letterSpacing: 3,
+      color: '#e2d3af',
+      stroke: '#000000',
+      strokeThickness: 2,
+    }).setOrigin(0.5);
+
+    bannerContainer.add([bg, mainTitle, subTitle]);
+
+    this.tweens.chain({
+      targets: bannerContainer,
+      tweens: [
+        { alpha: 1, duration: 1200, ease: 'Sine.easeIn' },
+        { alpha: 1, duration: 3200 },
+        { alpha: 0, duration: 1400, ease: 'Sine.easeOut', onComplete: () => bannerContainer.destroy() },
+      ],
+    });
+  }
+
   transitionToNextRoom() {
     if (this.isTransitioning) return;
     this.isTransitioning = true;
 
-    // Lock player velocity
     if (this.player && this.player.body) {
       this.player.body.setVelocity(0, 0);
     }
@@ -368,7 +396,7 @@ export default class GameScene extends Phaser.Scene {
     this.cameras.main.fade(800, 0, 0, 0, false, (cam, progress) => {
       if (progress === 1) {
         this.scene.restart({
-          floor: this.floor + 1,
+          floor: 2,
           souls: this.player.souls,
           health: this.player.health,
         });
@@ -456,9 +484,13 @@ export default class GameScene extends Phaser.Scene {
         });
       }
 
-      // Check room cleared condition: all enemies defeated!
+      // Check room cleared condition
       if (!this.hatchUnlocked && this.enemies.countActive(true) === 0) {
-        this.unlockHatch();
+        if (this.floor === 1) {
+          this.unlockHatch();
+        } else {
+          this.displayVictoryBanner();
+        }
       }
 
       if (this.hud) {

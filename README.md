@@ -45,14 +45,18 @@ Ett stämningsfullt mörkt 2D-actionrollspel i HTML5 och Phaser 3 med estetik, r
   - **Cursed Wraith (Spöke med glödande röda ögon)**: Eteriskt, halvgenomskinligt spöke med fladdrande slöjor och två genomträngande lysande röda ögon. Svävar ljudlöst med en mjuk sinusrörelse, fasar rakt igenom helgedomens pelare (*phasing*), och utför en snabb spektral kloattack med röda rivsår. Belönar +180 Souls vid förintelse.
   - **Dodge Roll-koppling**: Om spelaren rullar (<kbd>SPACE</kbd>) precis när en fiende eller spöke slår till skyddar i-frames spelaren så att den tar 0 skada.
   - **Dark Souls HP-mätare**: Alla fiender visar en svävande hälsomätare ovanför huvudet när de tar skada från spelarens storsvärd.
-- **Rumsrensning & Upplåsning av Lucka (Dungeon Progression)**:
-  - När samtliga fiender i salen är besegrade spelas en Dark Souls-banderoll: **"HELGEDOMEN RENAD"**.
-  - Den slutna träluckan längst till vänster ($X \approx 75, Y \approx 715$) låses upp och öppnas, varpå en stentrappa ned i djupet uppenbaras med gyllene ljussken och cinders.
-  - Genom att kliva på luckan tonar skärmen ned och tar Ashen One vidare till **Nivå 2: Förbannade Kryptan** med bevarade själar och hälsa samt en Bonfire vid start för återhämtning!
+- **Rumsrensning, Lucköppning & Nytt Rum (Dungeon Progression)**:
+  - **Rum 1 (Förbannade Salen)**: När samtliga fiender är besegrade visas Dark Souls-banderollen **"HELGEDOMEN RENAD"**.
+  - Den slutna träluckan i västra väggen ($X \approx 75, Y \approx 715$) låses upp och öppnas, varpå en stentrappa ned i djupet uppenbaras med gyllene själsstrålar och cinders.
+  - **Rum 2 (Tortyrkammaren / Våning 2)**: Genom att kliva på luckan tonar skärmen ned och tar Ashen One till nästa rum med en helt ny detaljerad dungeonkarta (`dungeon_room2.jpg`, 2048x1536).
+  - **Bevarade Stats**: Samlade Souls och hälsa följer sömlöst med mellan rummen.
+  - **Rum 2 Miljö & Fysiska Hinder**: Spelaren kliver in via den norra järndörren ($X \approx 988, Y \approx 200$) till en kuslig tortyrkammare med exakta kollisionsbarriärer för tortyrsäng med lik, alkemihyllor, ett massivt matsalsbord med stolar, krossade tunnor med skelett och en raserad stenmur.
+  - **Dynamiskt ljus i Rum 2**: Väggfackla med gnistpartiklar vid tortyrsängen och levande fladdrande ljus på matsalsbordet.
+  - **Segerbanderoll**: När alla fiender i tortyrkammaren fördrivits visas den gyllene triumfbanderollen **"KRYPTAN RENAD — SEGER"**.
 - **Gotisk spelmiljö ("Eldens Helgedom")**:
-  - Handritad högupplöst Dark Souls-dungeonkarta (2048 x 1536).
-  - Exakta fysiska kollisionslådor för träpelare, eldstad, kista, lådor, bokhylla och tunnor.
-  - Dynamiskt fladdrande eldstad och facklor.
+  - Handritade högupplösta Dark Souls-dungeonkartor (2048 x 1536).
+  - Exakta fysiska kollisionslådor anpassade för varje rums unika arkitektur och rekvisita.
+  - Dynamiskt fladdrande eldstad, väggfacklor och levande ljus.
   - Svävande aska och glöd (**Embers**) i luften.
   - Mjuk kameraföljning (Souls-lerp) med 1.35x zoom.
 - **Dark Souls 3 HUD**:
@@ -68,8 +72,9 @@ Ett stämningsfullt mörkt 2D-actionrollspel i HTML5 och Phaser 3 med estetik, r
 1. ✅ **Dodge Roll (Rullning med Space)**: Rullningsanimation med i-frames, 15% staminakostnad och efterbilder (*klart!*).
 2. ✅ **Svärdsattack**: Vänsterklick för primärt svärdshugg mot muspekare i en kon, träffområdesgeometri och ljusglöd (*klart!*).
 3. ✅ **Fiender & AI**: Riddare och svävande spöken med patrullering, jakt, telegraferad attack, stagger och själar (*klart!*).
-4. ✅ **Rumsrensning & Lucköppning**: Alla fiender döda öppnar västra luckan till nästa våning (*klart!*).
-5. **Ljud & Musik**: Atmosfäriskt mörkt ambientljud och svärdskling.
+4. ✅ **Rumsrensning & Lucköppning**: Alla fiender döda öppnar västra luckan med trappa nedåt (*klart!*).
+5. ✅ **Rum 2 (Tortyrkammaren)**: Ny bakgrundsbild, nya rumsunika hinder, norr-entré, fackelljus och segerbanderoll (*klart!*).
+6. **Ljud & Musik**: Atmosfäriskt mörkt ambientljud och svärdskling.
 
 ---
 

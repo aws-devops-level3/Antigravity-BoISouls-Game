@@ -7,6 +7,7 @@ export default class BootScene extends Phaser.Scene {
 
   preload() {
     this.load.image('dungeon_bg', '/assets/dungeon_background.jpg');
+    this.load.image('dungeon_bg_room2', '/assets/dungeon_room2.jpg');
   }
 
   create() {
