@@ -26,8 +26,8 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
     this.clearTint();
 
     // Physics body matching ghost torso and center mass
-    this.body.setSize(100, 100);
-    this.body.setOffset(58, 57);
+    this.body.setSize(105, 105);
+    this.body.setOffset(60, 58);
     this.setCollideWorldBounds(true);
 
     // Stats & Attributes
