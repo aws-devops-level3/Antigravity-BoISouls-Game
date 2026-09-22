@@ -18,6 +18,8 @@ export default class BootScene extends Phaser.Scene {
     this.createSlashTexture();
     this.createEnemyKnightTexture();
     this.createEnemySlashTexture();
+    this.createGhostTexture();
+    this.createGhostClawTexture();
 
     this.scene.start('GameScene');
   }
@@ -488,6 +490,137 @@ export default class BootScene extends Phaser.Scene {
     ctx.beginPath();
     ctx.arc(ox, oy, rOuter - 1, startAngle, endAngle);
     ctx.stroke();
+
+    canvas.refresh();
+  }
+
+  // Cursed Wraith / Ghost Enemy Texture (48x48) with Eerie Glowing Red Eyes
+  createGhostTexture() {
+    const canvas = this.textures.createCanvas('ghost_wraith', 48, 48);
+    const ctx = canvas.getContext();
+
+    // Soft spectral glow behind ghost
+    const auraGrad = ctx.createRadialGradient(24, 22, 6, 24, 22, 22);
+    auraGrad.addColorStop(0, 'rgba(80, 110, 140, 0.35)');
+    auraGrad.addColorStop(0.6, 'rgba(40, 50, 80, 0.15)');
+    auraGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = auraGrad;
+    ctx.beginPath();
+    ctx.arc(24, 22, 22, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Floating ethereal shroud / ragged spirit cowl
+    const ghostGrad = ctx.createLinearGradient(14, 8, 34, 44);
+    ghostGrad.addColorStop(0, 'rgba(150, 175, 205, 0.82)');
+    ghostGrad.addColorStop(0.4, 'rgba(95, 120, 150, 0.7)');
+    ghostGrad.addColorStop(0.8, 'rgba(45, 60, 85, 0.45)');
+    ghostGrad.addColorStop(1, 'rgba(20, 30, 50, 0)');
+
+    ctx.fillStyle = ghostGrad;
+    ctx.beginPath();
+    // Hood top
+    ctx.arc(24, 15, 11, Math.PI, 0, false);
+    // Right flowing wisp
+    ctx.quadraticCurveTo(37, 24, 34, 38);
+    ctx.lineTo(31, 44);
+    ctx.lineTo(27, 39);
+    // Center wisp
+    ctx.lineTo(24, 46);
+    ctx.lineTo(21, 39);
+    // Left flowing wisp
+    ctx.lineTo(17, 44);
+    ctx.quadraticCurveTo(11, 24, 13, 15);
+    ctx.closePath();
+    ctx.fill();
+
+    // Inner shadow of the hood
+    ctx.fillStyle = 'rgba(8, 10, 16, 0.95)';
+    ctx.beginPath();
+    ctx.ellipse(24, 16, 7.5, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Spectral skeletal claws hovering forward
+    ctx.strokeStyle = 'rgba(190, 215, 235, 0.75)';
+    ctx.lineWidth = 1.5;
+    // Left claw fingers
+    ctx.beginPath();
+    ctx.moveTo(14, 25);
+    ctx.lineTo(11, 30);
+    ctx.lineTo(8, 33);
+    ctx.moveTo(15, 26);
+    ctx.lineTo(13, 32);
+    ctx.moveTo(16, 27);
+    ctx.lineTo(15, 33);
+    ctx.stroke();
+
+    // Right claw fingers
+    ctx.beginPath();
+    ctx.moveTo(34, 25);
+    ctx.lineTo(37, 30);
+    ctx.lineTo(40, 33);
+    ctx.moveTo(33, 26);
+    ctx.lineTo(35, 32);
+    ctx.moveTo(32, 27);
+    ctx.lineTo(33, 33);
+    ctx.stroke();
+
+    // Piercing Glowing RED EYES (Souls Specter)
+    ctx.fillStyle = '#ff1111';
+    ctx.shadowColor = '#ff0000';
+    ctx.shadowBlur = 10;
+    // Left eye
+    ctx.beginPath();
+    ctx.arc(21, 15, 2.2, 0, Math.PI * 2);
+    ctx.fill();
+    // Right eye
+    ctx.beginPath();
+    ctx.arc(27, 15, 2.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Intense hot core of red eyes
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowBlur = 3;
+    ctx.beginPath();
+    ctx.arc(21, 15, 0.8, 0, Math.PI * 2);
+    ctx.arc(27, 15, 0.8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0; // Reset
+
+    canvas.refresh();
+  }
+
+  // Ghost Spectral Crimson Claw Attack (64x64)
+  createGhostClawTexture() {
+    const canvas = this.textures.createCanvas('ghost_claw', 64, 64);
+    const ctx = canvas.getContext();
+
+    // 3 sharp slashing claw trails
+    const claws = [
+      { startX: 10, startY: 14, cpX: 30, cpY: 28, endX: 54, endY: 22 },
+      { startX: 12, startY: 24, cpX: 32, cpY: 38, endX: 56, endY: 34 },
+      { startX: 16, startY: 34, cpX: 34, cpY: 48, endX: 52, endY: 46 },
+    ];
+
+    claws.forEach(c => {
+      // Red glow trail
+      ctx.strokeStyle = '#ff1133';
+      ctx.lineWidth = 3;
+      ctx.shadowColor = '#ff0033';
+      ctx.shadowBlur = 7;
+      ctx.beginPath();
+      ctx.moveTo(c.startX, c.startY);
+      ctx.quadraticCurveTo(c.cpX, c.cpY, c.endX, c.endY);
+      ctx.stroke();
+
+      // Sharp white hot core
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1;
+      ctx.shadowBlur = 0;
+      ctx.beginPath();
+      ctx.moveTo(c.startX + 2, c.startY + 1);
+      ctx.quadraticCurveTo(c.cpX, c.cpY, c.endX - 2, c.endY);
+      ctx.stroke();
+    });
 
     canvas.refresh();
   }

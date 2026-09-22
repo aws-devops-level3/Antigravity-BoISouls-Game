@@ -40,13 +40,11 @@ Ett stämningsfullt mörkt 2D-actionrollspel i HTML5 och Phaser 3 med estetik, r
   - Sprint med <kbd>SKIFT</kbd> som förbrukar uthållighet (Stamina) och regenereras automatiskt.
   - **Dodge Roll med <kbd>SPACE</kbd>**: Rullningsanimation (360° somersault), 15% staminakostnad (15 av 100), i-frames (odödlighetsfönster), eteriska efterbilder (*ghost trail*) och dammpuff.
   - **Svärdsattack med Vänsterklick**: Riktat storsvärdshugg mot muspekarens position i en 100-graders kon, svepande glödande svärdsbåge, flygande cinders/gnistor, kraftfullt framåtkliv (*lunge*), subtilt skärmskak och 20% staminakostnad.
-- **Fiender & AI (Hollow Knights / Förbannade vandrare)**:
-  - Bepansrade fiender som patrullerar helgedomens pelargångar.
-  - Aggrosystem med synradie, varningssignal (`!`) och intensiv jakt (*Chase*).
-  - Telegraferad attack med röd varningsglöd och framåtrusande blodröd klinge-effekt.
-  - Skadesystem med knockback, vit/röd skadeblinkning, svävande hälsomätare och stagger-reaktion.
-  - Full koppling till spelarens Dodge Roll (i-frames gör att spelaren rullar oskadd igenom fiendens hugg).
-  - Dödseffekt med gyllene själar och belöning (+250 Souls) till HUD-räknaren.
+- **Fiender & AI (Hollow Knights & Cursed Wraiths)**:
+  - **Hollow Knight**: Tungt bepansrad odöd riddare som patrullerar helgedomens pelargångar med telegraferat svärdshugg, stagger-reaktion och +250 Souls vid fall.
+  - **Cursed Wraith (Spöke med glödande röda ögon)**: Eteriskt, halvgenomskinligt spöke med fladdrande slöjor och två genomträngande lysande röda ögon. Svävar ljudlöst med en mjuk sinusrörelse, fasar rakt igenom helgedomens pelare (*phasing*), och utför en snabb spektral kloattack med röda rivsår. Belönar +180 Souls vid förintelse.
+  - **Dodge Roll-koppling**: Om spelaren rullar (<kbd>SPACE</kbd>) precis när en fiende eller spöke slår till skyddar i-frames spelaren så att den tar 0 skada.
+  - **Dark Souls HP-mätare**: Alla fiender visar en svävande hälsomätare ovanför huvudet när de tar skada från spelarens storsvärd.
 - **Gotisk spelmiljö ("Eldens Helgedom")**:
   - Detaljerat stengolv och arkitektoniska pelare med kollisionshantering.
   - Central **Bonfire** med det tvinnade svärdet och pulserande sken.

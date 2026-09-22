@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import Player from '../entities/Player.js';
 import Enemy from '../entities/Enemy.js';
+import GhostEnemy from '../entities/GhostEnemy.js';
 import SoulsHUD from '../ui/SoulsHUD.js';
 
 export default class GameScene extends Phaser.Scene {
@@ -28,13 +29,14 @@ export default class GameScene extends Phaser.Scene {
     // 5. Spawn Ashen One (Player) near Bonfire
     this.player = new Player(this, worldWidth / 2, worldHeight / 2 + 100);
 
-    // 6. Spawn Hollow Knights (Cursed Wandering Knights)
+    // 6. Spawn Enemies (Hollow Knights & Cursed Ghosts)
     this.enemies = this.add.group();
+    this.knights = this.add.group();
     this.spawnEnemies(worldWidth / 2, worldHeight / 2);
 
     // 7. Physics Collisions
     this.physics.add.collider(this.player, this.obstacles);
-    this.physics.add.collider(this.enemies, this.obstacles);
+    this.physics.add.collider(this.knights, this.obstacles); // Knights collide with pillars; ghosts phase through
     this.physics.add.collider(this.player, this.enemies);
 
     // 8. Ambient Floating Embers (Cinders of the First Flame)
@@ -201,17 +203,23 @@ export default class GameScene extends Phaser.Scene {
   }
 
   spawnEnemies(centerX, centerY) {
-    // Left colonnade patrol
-    const enemy1 = new Enemy(this, centerX - 180, centerY - 200);
-    this.enemies.add(enemy1);
+    // 1. Hollow Knights (Armored ground patrols)
+    const knight1 = new Enemy(this, centerX - 180, centerY - 200);
+    const knight2 = new Enemy(this, centerX + 180, centerY - 200);
+    const knight3 = new Enemy(this, centerX, centerY - 380);
 
-    // Right colonnade patrol
-    const enemy2 = new Enemy(this, centerX + 180, centerY - 200);
-    this.enemies.add(enemy2);
+    [knight1, knight2, knight3].forEach(k => {
+      this.knights.add(k);
+      this.enemies.add(k);
+    });
 
-    // Northern sanctuary guard
-    const enemy3 = new Enemy(this, centerX, centerY - 380);
-    this.enemies.add(enemy3);
+    // 2. Cursed Wraiths (Ethereal ghosts with glowing red eyes that phase through pillars)
+    const ghost1 = new GhostEnemy(this, centerX - 420, centerY + 240);
+    const ghost2 = new GhostEnemy(this, centerX + 420, centerY - 240);
+
+    [ghost1, ghost2].forEach(g => {
+      this.enemies.add(g);
+    });
   }
 
   update(time, delta) {
