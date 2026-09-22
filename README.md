@@ -33,12 +33,14 @@ Ett stämningsfullt mörkt 2D-actionrollspel i HTML5 och Phaser 3 med estetik, r
 ## ⚔️ Vad som är implementerat hittills
 
 - **Spelarkaraktär (Ashen One)**:
-  - 8-vägs rörelse med WASD och piltangenter.
-  - Normaliserad rörelsevektor för jämn hastighet i alla riktningar.
-  - Fysisk tyngd i stegen (acceleration/retardation).
-  - Vändning mot rörelseriktning samt fotstegsdamm och svajig gångcykel.
+  - **Autentisk Pixel Art-modell**: Spelaren styrs nu som en detaljerad pixel art-riddare med mörk rustning, hjälm med glödande visir, mantel/koger på ryggen och inbyggd markskugga.
+  - **Gång- och vilocykel (Walk & Idle)**: Full animerad gångcykel (`player_walk`, 6 bildrutor) med naturlig steg-bobbing och dynamisk hastighet (ökar vid sprint med <kbd>SKIFT</kbd>) samt ett stilla viloläge (`player_idle`).
+  - **Crisp Pixel Art Scaling**: Skalad till $2.2\times$ med `NEAREST`-filtrering för knivskarpa pixlar som smälter in i dungeon-miljön.
+  - 8-vägs rörelse med WASD och piltangenter med normaliserad hastighet.
+  - Fysisk tyngd i stegen (acceleration/retardation) och anpassad 2.5D-kollisionskropp ($14 \times 12$ px vid fötterna).
+  - Vändning mot rörelseriktning samt fotstegsdamm.
   - Sprint med <kbd>SKIFT</kbd> som förbrukar uthållighet (Stamina) och regenereras automatiskt.
-  - **Dodge Roll med <kbd>SPACE</kbd>**: Rullningsanimation (360° somersault), 15% staminakostnad (15 av 100), i-frames (odödlighetsfönster), eteriska efterbilder (*ghost trail*) och dammpuff.
+  - **Dodge Roll med <kbd>SPACE</kbd>**: Rullningsanimation (360° somersault), 15% staminakostnad, i-frames (odödlighetsfönster), eteriska efterbilder (*ghost trail*) av den nya modellen och dammpuff.
   - **Svärdsattack med Vänsterklick**: Riktat storsvärdshugg mot muspekarens position i en 100-graders kon, svepande glödande svärdsbåge, flygande cinders/gnistor, kraftfullt framåtkliv (*lunge*), subtilt skärmskak och 20% staminakostnad.
 - **Fiender & AI (Hollow Knights & Cursed Wraiths)**:
   - **Hollow Knight**: Tungt bepansrad odöd riddare som patrullerar helgedomens pelargångar med telegraferat svärdshugg, stagger-reaktion och +250 Souls vid fall.

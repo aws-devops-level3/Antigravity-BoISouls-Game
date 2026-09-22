@@ -8,14 +8,42 @@ export default class BootScene extends Phaser.Scene {
   preload() {
     this.load.image('dungeon_bg', '/assets/dungeon_background.jpg');
     this.load.image('dungeon_bg_room2', '/assets/dungeon_room2.jpg');
+    this.load.spritesheet('player_knight', '/assets/player_spritesheet.png', {
+      frameWidth: 32,
+      frameHeight: 32,
+    });
   }
 
   create() {
-    // Generate all game textures procedurally for a rich Dark Souls 3 aesthetic
+    // Set nearest-neighbor filtering for crisp retro pixel art
+    if (this.textures.exists('player_knight')) {
+      this.textures.get('player_knight').setFilter(Phaser.Textures.FilterMode.NEAREST);
+    }
+
+    // Player character animations
+    if (!this.anims.exists('player_idle')) {
+      this.anims.create({
+        key: 'player_idle',
+        frames: [{ key: 'player_knight', frame: 0 }],
+        frameRate: 1,
+        repeat: -1,
+      });
+    }
+
+    if (!this.anims.exists('player_walk')) {
+      this.anims.create({
+        key: 'player_walk',
+        frames: this.anims.generateFrameNumbers('player_knight', { start: 0, end: 5 }),
+        frameRate: 9,
+        repeat: -1,
+      });
+    }
+
+    // Generate all other game textures procedurally for a rich Dark Souls 3 aesthetic
     this.createFloorTexture();
     this.createPillarTexture();
     this.createWallTexture();
-    this.createKnightTexture();
+    // (createKnightTexture is replaced by the authentic pixel art spritesheet)
     this.createBonfireTexture();
     this.createEmberTexture();
     this.createDustTexture();

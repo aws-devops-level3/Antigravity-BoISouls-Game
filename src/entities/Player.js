@@ -7,10 +7,17 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
+    // Scale for authentic pixel-art character presence
+    this.baseScale = 2.2;
+    this.setScale(this.baseScale);
+
     // Physics body adjustments for 2.5D / top-down movement
-    this.body.setSize(22, 18);
-    this.body.setOffset(13, 26);
+    this.body.setSize(14, 12);
+    this.body.setOffset(9, 16);
     this.setCollideWorldBounds(true);
+
+    // Play default idle animation
+    this.play('player_idle');
 
     // Movement attributes - tuned for Soulsborne weight and response
     this.baseSpeed = 180;
@@ -230,7 +237,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     // Ball tuck / squash effect
     const tuck = 1 - 0.22 * Math.sin(progress * Math.PI);
-    this.setScale(tuck, tuck);
+    this.setScale(this.baseScale * tuck, this.baseScale * tuck);
 
     // Spawn afterimage trail
     this.afterimageTimer += dt;
@@ -244,7 +251,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       this.isRolling = false;
       this.isInvulnerable = false;
       this.setRotation(0);
-      this.setScale(1, 1);
+      this.setScale(this.baseScale, this.baseScale);
       this.dustEmitter.emitParticleAt(this.x, this.y + 16, 4);
 
       // Decelerate smoothly
@@ -256,7 +263,8 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   createAfterimage() {
-    const ghost = this.scene.add.sprite(this.x, this.y, 'player_knight');
+    const frameIndex = this.anims.currentFrame ? this.anims.currentFrame.textureFrame : 0;
+    const ghost = this.scene.add.sprite(this.x, this.y, 'player_knight', frameIndex);
     ghost.setFlipX(this.flipX);
     ghost.setRotation(this.rotation);
     ghost.setScale(this.scaleX, this.scaleY);
@@ -492,18 +500,22 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
   handleAnimation(dt) {
     if (this.isMoving) {
+      this.anims.play('player_walk', true);
+      this.anims.timeScale = this.isSprinting ? 1.4 : 1.0;
+
       // Walking bob effect (slight vertical squash & subtle tilt to simulate heavy armor footsteps)
       const animSpeed = this.isSprinting ? 16 : 10;
       this.walkCycle += dt * animSpeed;
       
-      const tilt = Math.cos(this.walkCycle) * 0.06;
+      const tilt = Math.cos(this.walkCycle) * 0.04;
       this.setRotation(tilt);
-      this.scaleY = 1 + Math.sin(this.walkCycle * 2) * 0.04;
+      this.setScale(this.baseScale, this.baseScale * (1 + Math.sin(this.walkCycle * 2) * 0.03));
     } else {
       // Return gently to neutral stance
       this.walkCycle = 0;
+      this.anims.play('player_idle', true);
       this.setRotation(Phaser.Math.Linear(this.rotation, 0, 0.2));
-      this.scaleY = 1;
+      this.setScale(this.baseScale, this.baseScale);
     }
   }
 
