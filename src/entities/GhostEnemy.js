@@ -69,9 +69,11 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
     this.hpBarGraphics.setDepth(2000);
     this.hpBarTimer = 0;
 
-    // Menacing red aura point light centered on its glowing red eyes
+    // Menacing red aura point light centered on its glowing red eyes (soft, static)
     if (scene.add.pointlight && scene.game.renderer.type === Phaser.WEBGL) {
-      this.lightSource = scene.add.pointlight(x, y - 18, 0xff0022, 110, 0.6, 0.08);
+      this.lightSource = scene.add.pointlight(x, y - 18, 0xff0022, 70, 0.35, 0.55);
+      this.lightSource.setAlpha(0.35);
+      this.lightSource.setBlendMode(Phaser.BlendModes.SCREEN);
     } else {
       this.lightSource = null;
     }
