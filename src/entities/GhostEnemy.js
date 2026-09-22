@@ -11,26 +11,24 @@ export const GhostState = {
 
 export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y) {
-    super(scene, x, y, 'ghost_pixel');
+    super(scene, x, y, 'ghost_enemy');
 
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
-    // Scale for authentic pixel-art character presence
-    this.baseScale = 2.2;
+    // Scale for authentic pixel-art character presence matching player and knight
+    this.baseScale = 0.36;
     this.setScale(this.baseScale);
 
-    // Semi-transparent spectral body
-    this.baseAlpha = 0.88;
+    // Ethereal white spectral body
+    this.baseAlpha = 0.95;
     this.setAlpha(this.baseAlpha);
+    this.clearTint();
 
-    // Physics body matching pixel proportions
-    this.body.setSize(14, 16);
-    this.body.setOffset(9, 10);
+    // Physics body matching ghost torso and center mass
+    this.body.setSize(100, 100);
+    this.body.setOffset(58, 57);
     this.setCollideWorldBounds(true);
-
-    // Play default floating animation
-    this.play('ghost_float');
 
     // Stats & Attributes
     this.maxHealth = 45;
@@ -73,7 +71,7 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
 
     // Menacing red aura point light centered on its glowing red eyes
     if (scene.add.pointlight && scene.game.renderer.type === Phaser.WEBGL) {
-      this.lightSource = scene.add.pointlight(x, y - 6, 0xff0022, 110, 0.55, 0.08);
+      this.lightSource = scene.add.pointlight(x, y - 20, 0xff0022, 115, 0.6, 0.08);
     } else {
       this.lightSource = null;
     }
@@ -171,10 +169,8 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
         Math.sin(angle) * this.patrolSpeed
       );
       this.setFlipX(Math.cos(angle) < 0);
-      this.anims.play('ghost_float', true);
     } else {
       this.body.setVelocity(0, 0);
-      this.anims.play('ghost_idle', true);
     }
   }
 
@@ -184,7 +180,6 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
     if (distToPlayer > 460 || player.health <= 0) {
       this.state = GhostState.PATROL;
       this.body.setVelocity(0, 0);
-      this.anims.play('ghost_idle', true);
       return;
     }
 
@@ -201,7 +196,6 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
     );
 
     this.setFlipX(Math.cos(angle) < 0);
-    this.anims.play('ghost_float', true);
   }
 
   startTelegraph(player) {
@@ -211,7 +205,6 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
 
     this.body.setVelocity(0, 0);
     this.setFlipX(Math.cos(this.attackAngle) < 0);
-    this.anims.play('ghost_idle', true);
 
     // Glowing red flare from eyes and shuddering wail
     this.setTint(0xff4455);
@@ -417,7 +410,7 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
   }
 
   showAggroAlert() {
-    const alert = this.scene.add.text(this.x, this.y - 30, '!', {
+    const alert = this.scene.add.text(this.x, this.y - 46, '!', {
       fontFamily: 'Cinzel, serif',
       fontSize: '22px',
       fontStyle: 'bold',
@@ -428,7 +421,7 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
 
     this.scene.tweens.add({
       targets: alert,
-      y: this.y - 42,
+      y: this.y - 58,
       alpha: 0,
       duration: 600,
       ease: 'Cubic.easeOut',
@@ -438,10 +431,10 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
 
   drawHPBar() {
     this.hpBarGraphics.clear();
-    const barWidth = 30;
+    const barWidth = 32;
     const barHeight = 4;
     const bx = this.x - barWidth / 2;
-    const by = this.y - 24;
+    const by = this.y - 42;
 
     this.hpBarGraphics.fillStyle(0x000000, 0.8);
     this.hpBarGraphics.fillRect(bx - 1, by - 1, barWidth + 2, barHeight + 2);
@@ -454,7 +447,7 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
   updateLight() {
     if (this.lightSource) {
       this.lightSource.x = this.x;
-      this.lightSource.y = this.y - 6;
+      this.lightSource.y = this.y - 20;
     }
   }
 

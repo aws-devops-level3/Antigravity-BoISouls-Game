@@ -20,6 +20,7 @@ export default class BootScene extends Phaser.Scene {
     });
     this.load.image('greatsword_bloody', '/assets/greatsword_bloody.png');
     this.load.image('knight_enemy', '/assets/knight_enemy.png');
+    this.load.image('ghost_enemy', '/assets/ghost_enemy.png');
   }
 
   create() {
@@ -41,6 +42,9 @@ export default class BootScene extends Phaser.Scene {
     }
     if (this.textures.exists('knight_enemy')) {
       this.textures.get('knight_enemy').setFilter(Phaser.Textures.FilterMode.NEAREST);
+    }
+    if (this.textures.exists('ghost_enemy')) {
+      this.textures.get('ghost_enemy').setFilter(Phaser.Textures.FilterMode.NEAREST);
     }
 
     // Ghost floating animations
