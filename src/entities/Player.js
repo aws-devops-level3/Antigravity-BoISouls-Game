@@ -6,6 +6,11 @@ function lerpAngle(a, b, t) {
   return a + diff * t;
 }
 
+// Helper to calculate exact sprite rotation for hammer pointing at target angle
+function getHammerRotation(targetAngle, isFacingLeft) {
+  return isFacingLeft ? (targetAngle + Math.PI * 0.75) : (targetAngle + Math.PI * 0.25);
+}
+
 export default class Player extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y) {
     super(scene, x, y, 'player_knight');
@@ -338,6 +343,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.isSprinting = false;
     this.currentSwingId++;
     this.hasTriggeredSmash = false;
+    this.hasSpawnedReachIndicator = false;
 
     // Deduct stamina and pause regen
     this.stamina = Math.max(0, this.stamina - this.attackStaminaCost);
@@ -360,32 +366,31 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       Math.sin(this.attackAngle) * lungeSpeed
     );
 
-    // Visual strike reach indicator (crescent arc showing exact attack perimeter)
-    this.spawnReachIndicator(this.attackAngle);
-
     // Dust at feet from forceful footwork
     this.dustEmitter.emitParticleAt(this.x, this.y + 16, 3);
   }
 
   spawnReachIndicator(angle) {
     const isFacingLeft = Math.cos(angle) < 0;
-    const arc = this.scene.add.sprite(this.x, this.y, 'reach_arc');
+    const handX = this.x + (isFacingLeft ? -8 : 8);
+    const handY = this.y + 1;
+
+    // The arc originates from the hammer head (~36px from hand) and extends ~0.5 cm (19px) outside the model (55px)
+    const arc = this.scene.add.sprite(handX, handY, 'reach_arc');
     arc.setOrigin(0.5, 0.5);
     arc.setRotation(angle);
 
-    // Scale reach arc to perfectly match attackRange (78-80 px)
-    const reachScale = 1.15;
-    arc.setScale(reachScale, isFacingLeft ? -reachScale : reachScale);
-    arc.setAlpha(0.95);
-    arc.setDepth(this.depth + 1);
+    arc.setScale(1.0, isFacingLeft ? -1.0 : 1.0);
+    arc.setAlpha(0.98);
+    arc.setDepth(this.depth + 3);
 
-    // Dynamic sweeping flare and smooth fade
+    // Sweeping flare from hammer head and smooth fade
     this.scene.tweens.add({
       targets: arc,
       alpha: 0,
-      scaleX: reachScale * 1.08,
-      scaleY: (isFacingLeft ? -reachScale : reachScale) * 1.08,
-      duration: 320,
+      scaleX: 1.06,
+      scaleY: isFacingLeft ? -1.06 : 1.06,
+      duration: 260,
       ease: 'Cubic.easeOut',
       onComplete: () => {
         arc.destroy();
@@ -462,7 +467,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       const startAngle = isFacingLeft ? 2.45 : -0.75;
       const windupAngle = this.attackAngle - (sign * 1.5);
       const curAim = lerpAngle(startAngle, windupAngle, p);
-      this.hammer.setRotation(curAim + Math.PI / 4);
+      this.hammer.setRotation(getHammerRotation(curAim, isFacingLeft));
       this.hammer.setScale(isFacingLeft ? -this.hammerScale : this.hammerScale, this.hammerScale);
 
       // Player leans back under the weight
@@ -475,8 +480,14 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       const windupAngle = this.attackAngle - (sign * 1.5);
       const endSmashAngle = this.attackAngle + (sign * 0.45);
       const curAim = lerpAngle(windupAngle, endSmashAngle, easePow);
-      this.hammer.setRotation(curAim + Math.PI / 4);
+      this.hammer.setRotation(getHammerRotation(curAim, isFacingLeft));
       this.hammer.setScale(isFacingLeft ? -this.hammerScale : this.hammerScale, this.hammerScale);
+
+      // Trigger reach indicator arc as the hammer head sweeps forward
+      if (progress >= 0.35 && !this.hasSpawnedReachIndicator) {
+        this.hasSpawnedReachIndicator = true;
+        this.spawnReachIndicator(this.attackAngle);
+      }
 
       // Player lunges forward with the swing
       this.setRotation(sign * Math.sin(p * Math.PI) * 0.18);
@@ -493,7 +504,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       const restAngle = this.attackAngle + (sign * 0.45);
       const readyAngle = isFacingLeft ? 2.45 : -0.75;
       const curAim = lerpAngle(restAngle, readyAngle, p);
-      this.hammer.setRotation(curAim + Math.PI / 4);
+      this.hammer.setRotation(getHammerRotation(curAim, isFacingLeft));
       this.hammer.setScale(isFacingLeft ? -this.hammerScale : this.hammerScale, this.hammerScale);
 
       this.setRotation(Phaser.Math.Linear(sign * 0.15, 0, p));
