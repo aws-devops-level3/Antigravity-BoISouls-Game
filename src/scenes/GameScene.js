@@ -18,10 +18,12 @@ export default class GameScene extends Phaser.Scene {
 
   create() {
     // Dynamic world bounds:
-    // Floor 1: SoulsLevel1 Battlemap (6750 x 4800)
+    // Floor 1: SoulsLevel1 scaled (mapScale: 0.42) so an entire room is visible on screen (~900-1000px per room)
     // Floor 2: Torture Chamber Crypt (2048 x 1536)
-    const worldWidth = this.floor === 1 ? 6750 : 2048;
-    const worldHeight = this.floor === 1 ? 4800 : 1536;
+    const mapScale = 0.42;
+    this.mapScale = mapScale;
+    const worldWidth = this.floor === 1 ? Math.round(6750 * mapScale) : 2048; // 2835 x 2016
+    const worldHeight = this.floor === 1 ? Math.round(4800 * mapScale) : 1536;
     this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
 
     // State flags for hatch and room progression
@@ -46,10 +48,10 @@ export default class GameScene extends Phaser.Scene {
     this.createLighting();
 
     // 5. Spawn Ashen One (Player)
-    // Floor 1: Beside the crypt bonfire / sarcophagus (1550, 2527)
+    // Floor 1: Beside the crypt bonfire / sarcophagus (~651, 1061)
     // Floor 2: Enters from the northern door (988, 200)
-    const spawnX = this.floor === 1 ? 1550 : 988;
-    const spawnY = this.floor === 1 ? 2527 : 200;
+    const spawnX = this.floor === 1 ? Math.round(1550 * mapScale) : 988;
+    const spawnY = this.floor === 1 ? Math.round(2527 * mapScale) : 200;
     this.player = new Player(this, spawnX, spawnY);
     this.player.souls = this.initialSouls;
     this.player.health = this.initialHealth;
@@ -67,10 +69,10 @@ export default class GameScene extends Phaser.Scene {
     // 8. Ambient Floating Cinders
     this.createEmberWeather(worldWidth, worldHeight);
 
-    // 9. Camera Settings - Smooth Soulsborne Lerp & Dark Vignette Zoom
+    // 9. Camera Settings - Smooth Soulsborne Lerp & Viewport Sizing so a whole room is visible at once
     this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
     this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
-    this.cameras.main.setZoom(this.floor === 1 ? 1.15 : 1.35);
+    this.cameras.main.setZoom(this.floor === 1 ? 1.0 : 1.35);
     this.cameras.main.fadeIn(700, 0, 0, 0);
 
     // 10. HUD System
@@ -97,7 +99,8 @@ export default class GameScene extends Phaser.Scene {
     this.createObstacle(width - 8, height / 2, 16, height); // Right
 
     if (this.floor === 1) {
-      // Build Level 1 solid walls and pillars from SoulsLevel1.json
+      const s = this.mapScale;
+      // Build Level 1 solid walls and pillars from SoulsLevel1.json scaled by s
       const nonDoors = level1Data.walls.filter(w => w.door !== 1);
 
       // Separate pillars (octagonal clusters of short segments) from straight structural walls
@@ -126,34 +129,37 @@ export default class GameScene extends Phaser.Scene {
 
       // 1. Create Pillar Obstacles
       pillars.forEach(p => {
-        this.createObstacle(p.x, p.y, 66, 66);
+        this.createObstacle(Math.round(p.x * s), Math.round(p.y * s), 32, 32);
       });
 
       // 2. Create Structural Wall Obstacles
       longSegs.forEach(w => {
-        const [x1, y1, x2, y2] = w.c;
-        const isH = Math.abs(y1 - y2) < 8;
+        const x1 = w.c[0] * s;
+        const y1 = w.c[1] * s;
+        const x2 = w.c[2] * s;
+        const y2 = w.c[3] * s;
+        const isH = Math.abs(y1 - y2) < 4;
         if (isH) {
           const minX = Math.min(x1, x2);
           const maxX = Math.max(x1, x2);
           const cx = (minX + maxX) / 2;
           const cy = (y1 + y2) / 2;
-          this.createObstacle(cx, cy, maxX - minX + 26, 28);
+          this.createObstacle(cx, cy, maxX - minX + 14, 16);
         } else {
           const minY = Math.min(y1, y2);
           const maxY = Math.max(y1, y2);
           const cx = (x1 + x2) / 2;
           const cy = (minY + maxY) / 2;
-          this.createObstacle(cx, cy, 28, maxY - minY + 26);
+          this.createObstacle(cx, cy, 16, maxY - minY + 14);
         }
       });
 
       // 3. Crypt Props: Central Sarcophagus & Altar
-      this.createObstacle(1550, 2380, 140, 230);
-      this.createObstacle(1550, 2530, 70, 70); // Bonfire hearth base
+      this.createObstacle(Math.round(1550 * s), Math.round(2380 * s), Math.round(140 * s), Math.round(230 * s));
+      this.createObstacle(Math.round(1550 * s), Math.round(2530 * s), Math.round(70 * s), Math.round(70 * s)); // Bonfire hearth base
 
       // 4. Hatch to Floor 2 in Upper Wooden Lodge (locked initially)
-      this.hatchObstacle = this.createObstacle(5540, 1050, 100, 100);
+      this.hatchObstacle = this.createObstacle(Math.round(5540 * s), Math.round(1050 * s), 60, 60);
     } else {
       // Room 2 (Torture Chamber) Props
       this.createObstacle(130, 160, 190, 250); // Torture Bed with corpse (Top Left)
@@ -177,12 +183,13 @@ export default class GameScene extends Phaser.Scene {
     if (!this.add.pointlight || this.game.renderer.type !== Phaser.WEBGL) return;
 
     if (this.floor === 1) {
-      // 1. Pointlights imported from SoulsLevel1.json
+      const s = this.mapScale;
+      // 1. Pointlights imported from SoulsLevel1.json scaled by s
       level1Data.lights.forEach((l, idx) => {
         const colorHex = parseInt(l.tintColor.replace('#', '0x'), 16);
-        const radius = Math.max(130, Math.round(l.dim * 16));
+        const radius = Math.max(70, Math.round(l.dim * 16 * s));
         const intensity = l.bright > 15 ? 0.72 : 0.52;
-        const pl = this.add.pointlight(l.x, l.y, colorHex, radius, intensity, 0.055);
+        const pl = this.add.pointlight(Math.round(l.x * s), Math.round(l.y * s), colorHex, radius, intensity, 0.055);
 
         // Subtle flame flicker
         if (idx % 3 === 0) {
@@ -199,11 +206,13 @@ export default class GameScene extends Phaser.Scene {
       });
 
       // 2. Cyan Water Fountain Shimmer in Grand Checkered Hall (4528, 3217)
-      const fountainGlow = this.add.pointlight(4528, 3217, 0x00e5ff, 280, 0.85, 0.04);
+      const fx = Math.round(4528 * s);
+      const fy = Math.round(3217 * s);
+      const fountainGlow = this.add.pointlight(fx, fy, 0x00e5ff, 160, 0.85, 0.04);
       this.tweens.add({
         targets: fountainGlow,
         intensity: { from: 0.75, to: 0.95 },
-        radius: { from: 260, to: 300 },
+        radius: { from: 140, to: 180 },
         duration: 600,
         yoyo: true,
         repeat: -1,
@@ -211,24 +220,28 @@ export default class GameScene extends Phaser.Scene {
       });
 
       // 3. Bonfire / Sarcophagus Hearth Embers in Crypt (1550, 2527)
-      this.add.particles(1550, 2527, 'ember_spark', {
-        speed: { min: 20, max: 55 },
+      const bx = Math.round(1550 * s);
+      const by = Math.round(2527 * s);
+      this.add.particles(bx, by, 'ember_spark', {
+        speed: { min: 15, max: 40 },
         angle: { min: 230, max: 310 },
-        scale: { start: 1, end: 0.1 },
+        scale: { start: 0.8, end: 0.1 },
         alpha: { start: 0.95, end: 0 },
-        lifespan: { min: 700, max: 1400 },
-        frequency: 60,
+        lifespan: { min: 600, max: 1200 },
+        frequency: 70,
         blendMode: 'ADD',
       });
 
       // 4. Burning Fireplace Embers in Grand Checkered Hall (5740, 3900)
-      this.add.particles(5740, 3900, 'ember_spark', {
-        speed: { min: 25, max: 70 },
+      const fpx = Math.round(5740 * s);
+      const fpy = Math.round(3900 * s);
+      this.add.particles(fpx, fpy, 'ember_spark', {
+        speed: { min: 18, max: 50 },
         angle: { min: 220, max: 320 },
-        scale: { start: 1.1, end: 0.2 },
+        scale: { start: 0.9, end: 0.15 },
         alpha: { start: 0.95, end: 0 },
-        lifespan: { min: 600, max: 1200 },
-        frequency: 45,
+        lifespan: { min: 500, max: 1000 },
+        frequency: 55,
         blendMode: 'ADD',
       });
     } else {
@@ -269,24 +282,25 @@ export default class GameScene extends Phaser.Scene {
 
   spawnEnemies() {
     if (this.floor === 1) {
-      // Floor 1 (Accursed Crypts & Grand Halls): 5 Knights, 5 Ghosts across map wings
+      const s = this.mapScale;
+      // Floor 1: 5 Knights, 5 Ghosts distributed across compact rooms
       // 1. Crypt Chamber (West)
-      const knight1 = new Enemy(this, 1050, 2200);
-      const knight2 = new Enemy(this, 2100, 2000);
-      const ghost1 = new GhostEnemy(this, 800, 2700);
+      const knight1 = new Enemy(this, Math.round(1050 * s), Math.round(2200 * s));
+      const knight2 = new Enemy(this, Math.round(2100 * s), Math.round(2000 * s));
+      const ghost1 = new GhostEnemy(this, Math.round(800 * s), Math.round(2700 * s));
 
       // 2. Forest Passage & Outdoors (Mid)
-      const ghost2 = new GhostEnemy(this, 3050, 3100);
-      const ghost3 = new GhostEnemy(this, 3200, 1800);
+      const ghost2 = new GhostEnemy(this, Math.round(3050 * s), Math.round(3100 * s));
+      const ghost3 = new GhostEnemy(this, Math.round(3200 * s), Math.round(1800 * s));
 
       // 3. Grand Checkered Hall (East)
-      const knight3 = new Enemy(this, 4000, 3200);
-      const knight4 = new Enemy(this, 5300, 3200);
-      const ghost4 = new GhostEnemy(this, 4528, 3217); // Circling the water fountain
+      const knight3 = new Enemy(this, Math.round(4000 * s), Math.round(3200 * s));
+      const knight4 = new Enemy(this, Math.round(5300 * s), Math.round(3200 * s));
+      const ghost4 = new GhostEnemy(this, Math.round(4528 * s), Math.round(3217 * s)); // Circling fountain
 
       // 4. Upper Wooden Lodge (North-East)
-      const knight5 = new Enemy(this, 5500, 1200);
-      const ghost5 = new GhostEnemy(this, 5850, 850);
+      const knight5 = new Enemy(this, Math.round(5500 * s), Math.round(1200 * s));
+      const ghost5 = new GhostEnemy(this, Math.round(5850 * s), Math.round(850 * s));
 
       [knight1, knight2, knight3, knight4, knight5].forEach(k => {
         this.knights.add(k);
@@ -326,8 +340,8 @@ export default class GameScene extends Phaser.Scene {
     }
 
     // 2. Spawn the Open Hatch Sprite with descending stairs
-    const hatchX = this.floor === 1 ? 5540 : 75;
-    const hatchY = this.floor === 1 ? 1050 : 715;
+    const hatchX = this.floor === 1 ? Math.round(5540 * this.mapScale) : 75;
+    const hatchY = this.floor === 1 ? Math.round(1050 * this.mapScale) : 715;
     const openHatch = this.add.sprite(hatchX, hatchY, 'open_hatch');
     openHatch.setOrigin(0.5, 0.5);
     openHatch.setDepth(20);
