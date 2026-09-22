@@ -77,6 +77,13 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     } else {
       this.lightSource = null;
     }
+
+    // Colossal Bloody Two-Handed Greatsword equipped in both hands
+    this.sword = scene.add.sprite(x, y, 'greatsword_bloody');
+    this.sword.setOrigin(0.5, 0.85); // Pivot at the two-handed grip
+    this.swordScale = 1.85; // Large imposing two-handed blade
+    this.sword.setScale(this.swordScale);
+    this.sword.setDepth(this.depth + 1);
   }
 
   update(time, delta, player) {
@@ -96,6 +103,7 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     }
 
     this.updateLight();
+    this.updateSword(dt);
 
     // AI State Machine
     switch (this.state) {
@@ -381,6 +389,20 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     }
 
     // Death fade & soul particles
+    if (this.sword) {
+      this.scene.tweens.add({
+        targets: this.sword,
+        alpha: 0,
+        scaleX: this.sword.scaleX * 0.7,
+        scaleY: this.sword.scaleY * 0.7,
+        duration: 450,
+        ease: 'Sine.easeOut',
+        onComplete: () => {
+          if (this.sword) this.sword.destroy();
+        },
+      });
+    }
+
     this.scene.tweens.add({
       targets: this,
       alpha: 0,
@@ -454,7 +476,64 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
+  updateSword(dt) {
+    if (!this.sword || this.state === EnemyState.DEAD) return;
+
+    const isFacingLeft = this.flipX;
+    const sign = isFacingLeft ? -1 : 1;
+
+    if (this.state === EnemyState.TELEGRAPH) {
+      // Phase 1: High Two-Handed Overhead Windup
+      const progress = 1 - Math.max(0, this.telegraphTimer / this.telegraphDuration);
+      const handX = this.x + (isFacingLeft ? -4 : 4);
+      const handY = this.y - 4;
+      this.sword.setPosition(handX, handY);
+      
+      const windupAngle = this.attackAngle - (sign * 1.6);
+      const curAim = Phaser.Math.Linear(isFacingLeft ? -0.4 : 0.4, windupAngle, progress);
+      this.sword.setRotation(curAim);
+      this.sword.setScale(isFacingLeft ? -this.swordScale : this.swordScale, this.swordScale);
+      this.sword.setDepth(this.depth + 1);
+    } else if (this.state === EnemyState.ATTACKING) {
+      // Phase 2: Heavy Downward Two-Handed Cleave
+      const progress = 1 - Math.max(0, this.attackTimer / this.attackDuration);
+      const windupAngle = this.attackAngle - (sign * 1.6);
+      const followThrough = this.attackAngle + (sign * 0.45);
+      const curAim = Phaser.Math.Linear(windupAngle, followThrough, Math.pow(progress, 1.8));
+
+      const lungeDist = 12 * Math.sin(progress * Math.PI);
+      const handX = this.x + Math.cos(this.attackAngle) * lungeDist;
+      const handY = this.y + Math.sin(this.attackAngle) * lungeDist;
+      this.sword.setPosition(handX, handY);
+      this.sword.setRotation(curAim);
+      this.sword.setScale(isFacingLeft ? -this.swordScale : this.swordScale, this.swordScale);
+      this.sword.setDepth(this.depth + 2);
+    } else if (this.state === EnemyState.STAGGER) {
+      // Recoil stance
+      const handX = this.x + (isFacingLeft ? -5 : 5);
+      const handY = this.y + 2;
+      this.sword.setPosition(handX, handY);
+      this.sword.setRotation(isFacingLeft ? 0.7 : -0.7);
+      this.sword.setScale(isFacingLeft ? -this.swordScale : this.swordScale, this.swordScale);
+      this.sword.setDepth(this.depth + 1);
+    } else {
+      // Patrol and Chase: Two-Handed Ready Stance held across the body
+      const handOffsetX = isFacingLeft ? -6 : 6;
+      const handOffsetY = 1;
+      this.sword.setPosition(this.x + handOffsetX, this.y + handOffsetY);
+
+      const idleTilt = isFacingLeft ? -0.45 : 0.45;
+      const walkSway = Math.sin(this.walkCycle) * 0.12;
+      this.sword.setRotation(idleTilt + walkSway);
+      this.sword.setScale(isFacingLeft ? -this.swordScale : this.swordScale, this.swordScale);
+      this.sword.setDepth(this.depth + 1);
+    }
+  }
+
   destroy(fromScene) {
+    if (this.sword) {
+      this.sword.destroy();
+    }
     if (this.lightSource) {
       this.lightSource.destroy();
     }

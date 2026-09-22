@@ -14,6 +14,11 @@ export default class BootScene extends Phaser.Scene {
     });
     this.load.image('hammer', '/assets/hammer.png');
     this.load.image('reach_arc', '/assets/reach_arc.png');
+    this.load.spritesheet('ghost_pixel', '/assets/ghost_spritesheet.png', {
+      frameWidth: 32,
+      frameHeight: 32,
+    });
+    this.load.image('greatsword_bloody', '/assets/greatsword_bloody.png');
   }
 
   create() {
@@ -26,6 +31,30 @@ export default class BootScene extends Phaser.Scene {
     }
     if (this.textures.exists('reach_arc')) {
       this.textures.get('reach_arc').setFilter(Phaser.Textures.FilterMode.NEAREST);
+    }
+    if (this.textures.exists('ghost_pixel')) {
+      this.textures.get('ghost_pixel').setFilter(Phaser.Textures.FilterMode.NEAREST);
+    }
+    if (this.textures.exists('greatsword_bloody')) {
+      this.textures.get('greatsword_bloody').setFilter(Phaser.Textures.FilterMode.NEAREST);
+    }
+
+    // Ghost floating animations
+    if (!this.anims.exists('ghost_float')) {
+      this.anims.create({
+        key: 'ghost_float',
+        frames: this.anims.generateFrameNumbers('ghost_pixel', { start: 0, end: 3 }),
+        frameRate: 6,
+        repeat: -1,
+      });
+    }
+    if (!this.anims.exists('ghost_idle')) {
+      this.anims.create({
+        key: 'ghost_idle',
+        frames: [{ key: 'ghost_pixel', frame: 0 }],
+        frameRate: 1,
+        repeat: -1,
+      });
     }
 
     // Player character animations

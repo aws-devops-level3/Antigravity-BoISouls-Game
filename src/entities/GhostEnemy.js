@@ -11,7 +11,7 @@ export const GhostState = {
 
 export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y) {
-    super(scene, x, y, 'player_knight');
+    super(scene, x, y, 'ghost_pixel');
 
     scene.add.existing(this);
     scene.physics.add.existing(this);
@@ -20,21 +20,17 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
     this.baseScale = 2.2;
     this.setScale(this.baseScale);
 
-    // Semi-transparent phantom body
-    this.baseAlpha = 0.68;
+    // Semi-transparent spectral body
+    this.baseAlpha = 0.88;
     this.setAlpha(this.baseAlpha);
 
-    // Spectral cyan / ice-blue phantom hue
-    this.baseTint = 0x66eeff;
-    this.setTint(this.baseTint);
-
     // Physics body matching pixel proportions
-    this.body.setSize(14, 14);
-    this.body.setOffset(9, 14);
+    this.body.setSize(14, 16);
+    this.body.setOffset(9, 10);
     this.setCollideWorldBounds(true);
 
-    // Play default idle animation
-    this.play('player_idle');
+    // Play default floating animation
+    this.play('ghost_float');
 
     // Stats & Attributes
     this.maxHealth = 45;
@@ -175,10 +171,10 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
         Math.sin(angle) * this.patrolSpeed
       );
       this.setFlipX(Math.cos(angle) < 0);
-      this.anims.play('player_walk', true);
+      this.anims.play('ghost_float', true);
     } else {
       this.body.setVelocity(0, 0);
-      this.anims.play('player_idle', true);
+      this.anims.play('ghost_idle', true);
     }
   }
 
@@ -188,7 +184,7 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
     if (distToPlayer > 460 || player.health <= 0) {
       this.state = GhostState.PATROL;
       this.body.setVelocity(0, 0);
-      this.anims.play('player_idle', true);
+      this.anims.play('ghost_idle', true);
       return;
     }
 
@@ -205,7 +201,7 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
     );
 
     this.setFlipX(Math.cos(angle) < 0);
-    this.anims.play('player_walk', true);
+    this.anims.play('ghost_float', true);
   }
 
   startTelegraph(player) {
@@ -215,7 +211,7 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
 
     this.body.setVelocity(0, 0);
     this.setFlipX(Math.cos(this.attackAngle) < 0);
-    this.anims.play('player_idle', true);
+    this.anims.play('ghost_idle', true);
 
     // Glowing red flare from eyes and shuddering wail
     this.setTint(0xff4455);
@@ -245,9 +241,9 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
     this.state = GhostState.ATTACKING;
     this.attackTimer = this.attackDuration;
     this.hasDamagedPlayerThisAttack = false;
-    this.setTint(this.baseTint);
+    this.clearTint();
     this.setScale(this.baseScale);
-    this.setAlpha(0.9);
+    this.setAlpha(0.95);
 
     // Fast phantom claw thrust
     const rushSpeed = 220;
@@ -302,7 +298,7 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
       this.attackCooldownTimer = this.attackCooldown;
       this.setAlpha(this.baseAlpha);
       this.setScale(this.baseScale);
-      this.setTint(this.baseTint);
+      this.clearTint();
       this.body.setVelocity(0, 0);
     }
   }
@@ -333,7 +329,7 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
         this.setTint(0xff3344);
         this.scene.time.delayedCall(110, () => {
           if (this.state !== GhostState.DEAD) {
-            this.setTint(this.baseTint);
+            this.clearTint();
             this.setAlpha(this.baseAlpha);
           }
         });
@@ -376,7 +372,7 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
 
     if (this.staggerTimer <= 0) {
       this.state = GhostState.CHASE;
-      this.setTint(this.baseTint);
+      this.clearTint();
       this.setAlpha(this.baseAlpha);
       this.setScale(this.baseScale);
     }
