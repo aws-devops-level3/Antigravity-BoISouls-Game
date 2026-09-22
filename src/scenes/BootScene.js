@@ -24,6 +24,7 @@ export default class BootScene extends Phaser.Scene {
     this.createEnemySlashTexture();
     this.createGhostTexture();
     this.createGhostClawTexture();
+    this.createOpenHatchTexture();
 
     this.scene.start('GameScene');
   }
@@ -625,6 +626,74 @@ export default class BootScene extends Phaser.Scene {
       ctx.quadraticCurveTo(c.cpX, c.cpY, c.endX - 2, c.endY);
       ctx.stroke();
     });
+
+    canvas.refresh();
+  }
+
+  // Open Dungeon Hatch / Stone Trapdoor with Descending Stairs (110x120)
+  createOpenHatchTexture() {
+    const canvas = this.textures.createCanvas('open_hatch', 110, 120);
+    const ctx = canvas.getContext();
+
+    // Dark stone pit background
+    ctx.fillStyle = '#08060b';
+    ctx.fillRect(8, 12, 94, 98);
+
+    // Stone steps descending down into deep darkness
+    const steps = [
+      { y: 16, h: 18, color: '#38303e', highlight: '#544b5c' },
+      { y: 34, h: 18, color: '#2b2430', highlight: '#413849' },
+      { y: 52, h: 18, color: '#1f1a23', highlight: '#302837' },
+      { y: 70, h: 18, color: '#141018', highlight: '#221b27' },
+      { y: 88, h: 22, color: '#09070c', highlight: '#17121b' },
+    ];
+
+    steps.forEach((st, i) => {
+      ctx.fillStyle = st.color;
+      ctx.fillRect(14 + i * 4, st.y, 82 - i * 8, st.h);
+
+      // Step edge highlight
+      ctx.fillStyle = st.highlight;
+      ctx.fillRect(14 + i * 4, st.y, 82 - i * 8, 2);
+    });
+
+    // Golden torchlight aura rising from the subterranean depth
+    const depthGlow = ctx.createRadialGradient(55, 95, 4, 55, 70, 50);
+    depthGlow.addColorStop(0, 'rgba(255, 170, 40, 0.6)');
+    depthGlow.addColorStop(0.5, 'rgba(210, 110, 20, 0.3)');
+    depthGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = depthGlow;
+    ctx.fillRect(10, 20, 90, 90);
+
+    // Heavy carved stone border frame around pit
+    ctx.strokeStyle = '#473d4e';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(8, 12, 94, 98);
+
+    // Brass corner braces
+    ctx.fillStyle = '#c49a45';
+    ctx.fillRect(6, 10, 10, 6);
+    ctx.fillRect(94, 10, 10, 6);
+    ctx.fillRect(6, 104, 10, 6);
+    ctx.fillRect(94, 104, 10, 6);
+
+    // Heavy wooden door swung open against the wall (tilted perspective)
+    ctx.fillStyle = '#4a2f1c';
+    ctx.fillRect(2, 6, 12, 106);
+    ctx.fillStyle = '#2e1c0f';
+    ctx.fillRect(14, 8, 4, 102);
+
+    // Iron hinges on the door
+    ctx.fillStyle = '#222';
+    ctx.fillRect(0, 24, 16, 5);
+    ctx.fillRect(0, 84, 16, 5);
+
+    // Iron ring handle
+    ctx.strokeStyle = '#999';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(8, 54, 4, 0, Math.PI * 2);
+    ctx.stroke();
 
     canvas.refresh();
   }

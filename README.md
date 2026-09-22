@@ -45,11 +45,16 @@ Ett stämningsfullt mörkt 2D-actionrollspel i HTML5 och Phaser 3 med estetik, r
   - **Cursed Wraith (Spöke med glödande röda ögon)**: Eteriskt, halvgenomskinligt spöke med fladdrande slöjor och två genomträngande lysande röda ögon. Svävar ljudlöst med en mjuk sinusrörelse, fasar rakt igenom helgedomens pelare (*phasing*), och utför en snabb spektral kloattack med röda rivsår. Belönar +180 Souls vid förintelse.
   - **Dodge Roll-koppling**: Om spelaren rullar (<kbd>SPACE</kbd>) precis när en fiende eller spöke slår till skyddar i-frames spelaren så att den tar 0 skada.
   - **Dark Souls HP-mätare**: Alla fiender visar en svävande hälsomätare ovanför huvudet när de tar skada från spelarens storsvärd.
+- **Rumsrensning & Upplåsning av Lucka (Dungeon Progression)**:
+  - När samtliga fiender i salen är besegrade spelas en Dark Souls-banderoll: **"HELGEDOMEN RENAD"**.
+  - Den slutna träluckan längst till vänster ($X \approx 75, Y \approx 715$) låses upp och öppnas, varpå en stentrappa ned i djupet uppenbaras med gyllene ljussken och cinders.
+  - Genom att kliva på luckan tonar skärmen ned och tar Ashen One vidare till **Nivå 2: Förbannade Kryptan** med bevarade själar och hälsa samt en Bonfire vid start för återhämtning!
 - **Gotisk spelmiljö ("Eldens Helgedom")**:
-  - Detaljerat stengolv och arkitektoniska pelare med kollisionshantering.
-  - Central **Bonfire** med det tvinnade svärdet och pulserande sken.
+  - Handritad högupplöst Dark Souls-dungeonkarta (2048 x 1536).
+  - Exakta fysiska kollisionslådor för träpelare, eldstad, kista, lådor, bokhylla och tunnor.
+  - Dynamiskt fladdrande eldstad och facklor.
   - Svävande aska och glöd (**Embers**) i luften.
-  - Mjuk kameraföljning (Souls-lerp) med 1.4x zoom.
+  - Mjuk kameraföljning (Souls-lerp) med 1.35x zoom.
 - **Dark Souls 3 HUD**:
   - Djupröd livmätare (HP).
   - Koboltblå fokusmätare (FP).
@@ -62,8 +67,9 @@ Ett stämningsfullt mörkt 2D-actionrollspel i HTML5 och Phaser 3 med estetik, r
 
 1. ✅ **Dodge Roll (Rullning med Space)**: Rullningsanimation med i-frames, 15% staminakostnad och efterbilder (*klart!*).
 2. ✅ **Svärdsattack**: Vänsterklick för primärt svärdshugg mot muspekare i en kon, träffområdesgeometri och ljusglöd (*klart!*).
-3. ✅ **Fiender & AI**: Första fientliga riddaren/vandraren med patrullering, jakt, telegraferad attack, stagger och själar (*klart!*).
-4. **Ljud & Musik**: Atmosfäriskt mörkt ambientljud och svärdskling.
+3. ✅ **Fiender & AI**: Riddare och svävande spöken med patrullering, jakt, telegraferad attack, stagger och själar (*klart!*).
+4. ✅ **Rumsrensning & Lucköppning**: Alla fiender döda öppnar västra luckan till nästa våning (*klart!*).
+5. **Ljud & Musik**: Atmosfäriskt mörkt ambientljud och svärdskling.
 
 ---
 

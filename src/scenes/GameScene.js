@@ -9,11 +9,21 @@ export default class GameScene extends Phaser.Scene {
     super('GameScene');
   }
 
+  init(data) {
+    this.floor = data && data.floor ? data.floor : 1;
+    this.initialSouls = data && data.souls !== undefined ? data.souls : 2450;
+    this.initialHealth = data && data.health !== undefined ? data.health : 100;
+  }
+
   create() {
-    // Exact dimensions of the new dungeon background (2048 x 1536)
+    // Exact dimensions of the dungeon background (2048 x 1536)
     const worldWidth = 2048;
     const worldHeight = 1536;
     this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
+
+    // State flags for hatch and room progression
+    this.hatchUnlocked = false;
+    this.isTransitioning = false;
 
     // 1. Render Handcrafted Gothic Dungeon Battlemap Background
     this.add.image(worldWidth / 2, worldHeight / 2, 'dungeon_bg').setOrigin(0.5, 0.5);
@@ -29,6 +39,13 @@ export default class GameScene extends Phaser.Scene {
 
     // 5. Spawn Ashen One (Player) on the Red Carpet in the lower hall
     this.player = new Player(this, 988, 1260);
+    this.player.souls = this.initialSouls;
+    this.player.health = this.initialHealth;
+
+    // On Floor 2+, spawn a resting Bonfire near player spawn
+    if (this.floor > 1) {
+      this.createRestBonfire(1080, 1260);
+    }
 
     // 6. Spawn Enemies (Hollow Knights & Cursed Wraiths)
     this.enemies = this.add.group();
@@ -47,12 +64,19 @@ export default class GameScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
     this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
     this.cameras.main.setZoom(1.35);
+    this.cameras.main.fadeIn(600, 0, 0, 0);
 
     // 10. HUD System
     this.hud = new SoulsHUD(this);
 
     // 11. Atmospheric Location Title Display
-    this.displayAreaTitle('FÖRBANNADE SALEN', 'The Accursed Hall');
+    if (this.floor === 1) {
+      this.displayAreaTitle('FÖRBANNADE SALEN', 'The Accursed Hall - Våning 1');
+    } else if (this.floor === 2) {
+      this.displayAreaTitle('FÖRBANNADE KRYPTAN', 'The Accursed Crypt - Våning 2');
+    } else {
+      this.displayAreaTitle('DJUPENS AVGRUND', `The Deep Abyss - Våning ${this.floor}`);
+    }
 
     // Handle Window Resize
     this.scale.on('resize', (gameSize) => {
@@ -83,8 +107,8 @@ export default class GameScene extends Phaser.Scene {
     // Bookshelf & Scrolls (Top Right)
     this.createObstacle(1750, 70, 160, 90);
 
-    // Heavy Reinforced Chest (Left Edge)
-    this.createObstacle(75, 715, 100, 110);
+    // Heavy Reinforced Hatch on Far Left Wall (Initially locked)
+    this.hatchObstacle = this.createObstacle(75, 715, 100, 110);
 
     // Stacked Barrels (Bottom Right)
     this.createObstacle(1675, 1480, 210, 90);
@@ -98,7 +122,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   createHearthAndTorches() {
-    // Glowing Fireplace at bottom center (988, 1490)
+    // Glowing Fireplace at bottom center (988, 1485)
     if (this.add.pointlight && this.game.renderer.type === Phaser.WEBGL) {
       const hearthLight = this.add.pointlight(988, 1485, 0xff7711, 260, 0.75, 0.04);
       this.tweens.add({
@@ -137,7 +161,7 @@ export default class GameScene extends Phaser.Scene {
     // Upward floating hearth flame embers
     this.add.particles(988, 1485, 'ember_spark', {
       speed: { min: 25, max: 65 },
-      angle: { min: 240, max: 300 }, // Upward into chimney
+      angle: { min: 240, max: 300 },
       scale: { start: 1, end: 0.2 },
       alpha: { start: 0.95, end: 0 },
       lifespan: { min: 600, max: 1300 },
@@ -146,28 +170,213 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
+  createRestBonfire(x, y) {
+    const bonfire = this.add.sprite(x, y, 'bonfire');
+    bonfire.setDepth(y);
+
+    if (this.add.pointlight && this.game.renderer.type === Phaser.WEBGL) {
+      this.add.pointlight(x, y + 8, 0xff7722, 160, 0.6, 0.05);
+    }
+
+    this.add.particles(x, y + 8, 'ember_spark', {
+      speed: { min: 15, max: 40 },
+      angle: { min: 250, max: 290 },
+      scale: { start: 0.8, end: 0.1 },
+      alpha: { start: 0.8, end: 0 },
+      lifespan: 800,
+      frequency: 90,
+      blendMode: 'ADD',
+    });
+
+    // Proximity healing & refill
+    const restZone = this.add.zone(x, y, 60, 60);
+    this.physics.add.existing(restZone, true);
+    this.physics.add.overlap(this.player, restZone, () => {
+      if (this.player.health < this.player.maxHealth) {
+        this.player.health = this.player.maxHealth;
+        this.player.stamina = this.player.maxStamina;
+        this.displayBonfireLitBanner();
+      }
+    });
+  }
+
+  displayBonfireLitBanner() {
+    if (this.hasShownRestBanner) return;
+    this.hasShownRestBanner = true;
+
+    const cam = this.cameras.main;
+    const banner = this.add.text(cam.width / 2, cam.height * 0.4, 'LÄGERELD VILAD - HÄLSA ÅTERSTÄLLD', {
+      fontFamily: 'Cinzel, serif',
+      fontSize: '20px',
+      fontStyle: 'bold',
+      letterSpacing: 4,
+      color: '#ffa500',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(2000).setAlpha(0);
+
+    this.tweens.chain({
+      targets: banner,
+      tweens: [
+        { alpha: 1, duration: 600 },
+        { alpha: 1, duration: 1400 },
+        { alpha: 0, duration: 800, onComplete: () => banner.destroy() },
+      ],
+    });
+  }
+
   spawnEnemies() {
-    // 1. Hollow Knights (Armored ground patrols)
+    // Floor 1: 3 Knights, 2 Ghosts
+    // Floor 2+: 4 Knights, 3 Ghosts
     const knight1 = new Enemy(this, 630, 680);
     const knight2 = new Enemy(this, 1420, 780);
     const knight3 = new Enemy(this, 988, 380);
 
-    [knight1, knight2, knight3].forEach(k => {
+    const knightsList = [knight1, knight2, knight3];
+    if (this.floor > 1) {
+      knightsList.push(new Enemy(this, 1024, 760));
+    }
+
+    knightsList.forEach(k => {
       this.knights.add(k);
       this.enemies.add(k);
     });
 
-    // 2. Cursed Wraiths (Ghosts with glowing red eyes that phase through pillars)
-    const ghost1 = new GhostEnemy(this, 380, 1050); // Lurking by the blood stain & chest
-    const ghost2 = new GhostEnemy(this, 1640, 400); // Lurking near the skeleton & bookshelf
+    // Ghosts
+    const ghost1 = new GhostEnemy(this, 380, 1050);
+    const ghost2 = new GhostEnemy(this, 1640, 400);
+    const ghostsList = [ghost1, ghost2];
+    if (this.floor > 1) {
+      ghostsList.push(new GhostEnemy(this, 1200, 300));
+    }
 
-    [ghost1, ghost2].forEach(g => {
+    ghostsList.forEach(g => {
       this.enemies.add(g);
     });
   }
 
+  unlockHatch() {
+    this.hatchUnlocked = true;
+
+    // 1. Remove solid collision blocking the hatch
+    if (this.hatchObstacle) {
+      this.hatchObstacle.destroy();
+      this.hatchObstacle = null;
+    }
+
+    // 2. Spawn the Open Hatch Sprite with descending stairs
+    const hatchX = 75;
+    const hatchY = 715;
+    const openHatch = this.add.sprite(hatchX, hatchY, 'open_hatch');
+    openHatch.setOrigin(0.5, 0.5);
+    openHatch.setDepth(20);
+
+    // 3. Golden soul beacon light emanating from the open abyss
+    if (this.add.pointlight && this.game.renderer.type === Phaser.WEBGL) {
+      const hatchLight = this.add.pointlight(hatchX + 10, hatchY, 0xffaa22, 190, 0.8, 0.05);
+      this.tweens.add({
+        targets: hatchLight,
+        intensity: { from: 0.65, to: 0.95 },
+        radius: { from: 180, to: 210 },
+        duration: 400,
+        yoyo: true,
+        repeat: -1,
+      });
+    }
+
+    // 4. Golden soul particles floating upward into the room
+    const hatchSparks = this.add.particles(hatchX + 8, hatchY, 'ember_spark', {
+      speed: { min: 20, max: 60 },
+      angle: { min: -40, max: 40 },
+      scale: { start: 1, end: 0.2 },
+      alpha: { start: 0.95, end: 0 },
+      tint: 0xffd700,
+      lifespan: 850,
+      frequency: 80,
+      blendMode: 'ADD',
+    });
+    hatchSparks.setDepth(22);
+
+    // 5. Display dramatic Souls banner: "HELGEDOMEN RENAD"
+    this.displayRoomClearedBanner();
+
+    // 6. Overlap trigger to transition to next room
+    const triggerZone = this.add.zone(hatchX, hatchY, 80, 90);
+    this.physics.add.existing(triggerZone, true);
+    this.physics.add.overlap(this.player, triggerZone, () => {
+      this.transitionToNextRoom();
+    });
+  }
+
+  displayRoomClearedBanner() {
+    const cam = this.cameras.main;
+    const bannerContainer = this.add.container(cam.width / 2, cam.height * 0.32);
+    bannerContainer.setScrollFactor(0);
+    bannerContainer.setDepth(2500);
+    bannerContainer.setAlpha(0);
+
+    // Banner dark backdrop band
+    const bg = this.add.graphics();
+    bg.fillStyle(0x060508, 0.75);
+    bg.fillRect(-cam.width / 2, -35, cam.width, 70);
+    bg.lineStyle(1.5, 0xc99e3a, 0.7);
+    bg.strokeLineShape(new Phaser.Geom.Line(-cam.width / 2, -35, cam.width / 2, -35));
+    bg.strokeLineShape(new Phaser.Geom.Line(-cam.width / 2, 35, cam.width / 2, 35));
+
+    const mainTitle = this.add.text(0, -6, 'HELGEDOMEN RENAD', {
+      fontFamily: 'Cinzel, serif',
+      fontSize: '28px',
+      fontStyle: 'bold',
+      letterSpacing: 6,
+      color: '#f5efe6',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5);
+
+    const subTitle = this.add.text(0, 20, 'Luckan i västra väggen har öppnats — Stig ned i djupet', {
+      fontFamily: 'Cinzel, serif',
+      fontSize: '13px',
+      letterSpacing: 3,
+      color: '#d4af37',
+      stroke: '#000000',
+      strokeThickness: 2,
+    }).setOrigin(0.5);
+
+    bannerContainer.add([bg, mainTitle, subTitle]);
+
+    // Dramatic Dark Souls banner presentation
+    this.tweens.chain({
+      targets: bannerContainer,
+      tweens: [
+        { alpha: 1, duration: 1200, ease: 'Sine.easeIn' },
+        { alpha: 1, duration: 2600 },
+        { alpha: 0, duration: 1400, ease: 'Sine.easeOut', onComplete: () => bannerContainer.destroy() },
+      ],
+    });
+  }
+
+  transitionToNextRoom() {
+    if (this.isTransitioning) return;
+    this.isTransitioning = true;
+
+    // Lock player velocity
+    if (this.player && this.player.body) {
+      this.player.body.setVelocity(0, 0);
+    }
+
+    // Camera fade out to black
+    this.cameras.main.fade(800, 0, 0, 0, false, (cam, progress) => {
+      if (progress === 1) {
+        this.scene.restart({
+          floor: this.floor + 1,
+          souls: this.player.souls,
+          health: this.player.health,
+        });
+      }
+    });
+  }
+
   createEmberWeather(width, height) {
-    // Ambient floating embers rising across the dungeon hall
     this.emberParticles = this.add.particles(0, 0, 'ember_spark', {
       emitZone: {
         source: new Phaser.Geom.Rectangle(0, 0, width, height),
@@ -212,20 +421,21 @@ export default class GameScene extends Phaser.Scene {
 
     titleContainer.add([titleText, subText]);
 
-    // Dark Souls dramatic area discovery fade
     this.tweens.chain({
       targets: titleContainer,
       tweens: [
         { alpha: 1, duration: 1800, ease: 'Sine.easeIn' },
         { alpha: 1, duration: 2200 },
-        { alpha: 0, duration: 1800, ease: 'Sine.easeOut' },
+        { alpha: 0, duration: 1800, ease: 'Sine.easeOut', onComplete: () => titleContainer.destroy() },
       ],
     });
   }
 
   update(time, delta) {
     if (this.player) {
-      this.player.update(time, delta);
+      if (!this.isTransitioning) {
+        this.player.update(time, delta);
+      }
       this.player.setDepth(this.player.y + 10);
 
       // Update all active enemies
@@ -244,6 +454,11 @@ export default class GameScene extends Phaser.Scene {
             }
           }
         });
+      }
+
+      // Check room cleared condition: all enemies defeated!
+      if (!this.hatchUnlocked && this.enemies.countActive(true) === 0) {
+        this.unlockHatch();
       }
 
       if (this.hud) {
