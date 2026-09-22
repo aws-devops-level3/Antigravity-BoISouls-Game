@@ -48,9 +48,10 @@ Ett stämningsfullt mörkt 2D-actionrollspel i HTML5 och Phaser 3 med estetik, r
       3. **Markkross & Chockvåg**: Slår ned i stengolvet med full kraft och utlöser en cirkulär stensprick-chockvåg (`hammer_shockwave`), flygande stenrester och cinders (utan skärmskakning för stabil sikt).
       4. **Ökad Krosskada**: Delar ut 45 krosskada (stagger) mot Hollow Knights och Cursed Wraiths.
   - **Dodge Roll med <kbd>SPACE</kbd>**: Rullningsanimation (360° somersault), 15% staminakostnad, i-frames (odödlighetsfönster), eteriska efterbilder (*ghost trail*) av både riddaren och hammaren samt dammpuff.
-- **Fiender & AI (Hollow Knights & Cursed Wraiths)**:
-  - **Hollow Knight**: Tungt bepansrad odöd riddare som patrullerar helgedomens pelargångar med telegraferat svärdshugg, stagger-reaktion och +250 Souls vid fall.
-  - **Cursed Wraith (Spöke med glödande röda ögon)**: Eteriskt, halvgenomskinligt spöke med fladdrande slöjor och två genomträngande lysande röda ögon. Svävar ljudlöst med en mjuk sinusrörelse, fasar rakt igenom helgedomens pelare (*phasing*), och utför en snabb spektral kloattack med röda rivsår. Belönar +180 Souls vid förintelse.
+- **Fiender & AI (Hollow Knights & Cursed Wraiths i Pixel Art)**:
+  - **Pixel Art-modeller**: Både riddare och spöken använder nu samma pixelerade spritesheet som spelarkaraktären (`player_knight`) skalad till $2.2\times$ med `NEAREST`-filtrering för en enhetlig retroestetik.
+  - **Hollow Knight**: Korrumperad mörk järnriddare (`0xd05555`) som patrullerar med animerade steg (`player_walk`), telegraferat svärdshugg, rött auraljus, stagger-reaktion och +250 Souls vid fall.
+  - **Cursed Wraith (Spöke med glödande röda ögon)**: Halvgenomskinligt spöke (`alpha = 0.68`) i isblå/cyan phantom-ton (`0x66eeff`) med genomträngande lysande röda ögon i hjälmen (`0xff0022`). Svävar ljudlöst med en mjuk sinusrörelse, fasar rakt igenom helgedomens pelare (*phasing*), animerad gångcykel och snabb spektral kloattack. Belönar +180 Souls vid förintelse.
   - **Dodge Roll-koppling**: Om spelaren rullar (<kbd>SPACE</kbd>) precis när en fiende eller spöke slår till skyddar i-frames spelaren så att den tar 0 skada.
   - **Dark Souls HP-mätare**: Alla fiender visar en svävande hälsomätare ovanför huvudet när de tar skada från spelarens storsvärd.
 - **Rumsrensning, Lucköppning & Nytt Rum (Dungeon Progression)**:
