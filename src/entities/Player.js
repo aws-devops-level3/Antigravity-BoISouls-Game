@@ -1,5 +1,11 @@
 import Phaser from 'phaser';
 
+// Shortest-distance angle interpolation helper
+function lerpAngle(a, b, t) {
+  const diff = Phaser.Math.Angle.Wrap(b - a);
+  return a + diff * t;
+}
+
 export default class Player extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y) {
     super(scene, x, y, 'player_knight');
@@ -429,7 +435,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       const p = progress / 0.35;
       const startAngle = isFacingLeft ? 2.45 : -0.75;
       const windupAngle = this.attackAngle - (sign * 1.5);
-      const curAim = Phaser.Math.Angle.Lerp(startAngle, windupAngle, p);
+      const curAim = lerpAngle(startAngle, windupAngle, p);
       this.hammer.setRotation(curAim + Math.PI / 4);
       this.hammer.setScale(isFacingLeft ? -this.hammerScale : this.hammerScale, this.hammerScale);
 
@@ -442,7 +448,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       const easePow = Math.pow(p, 2.2);
       const windupAngle = this.attackAngle - (sign * 1.5);
       const endSmashAngle = this.attackAngle + (sign * 0.45);
-      const curAim = Phaser.Math.Angle.Lerp(windupAngle, endSmashAngle, easePow);
+      const curAim = lerpAngle(windupAngle, endSmashAngle, easePow);
       this.hammer.setRotation(curAim + Math.PI / 4);
       this.hammer.setScale(isFacingLeft ? -this.hammerScale : this.hammerScale, this.hammerScale);
 
@@ -460,7 +466,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       const p = (progress - 0.65) / 0.35;
       const restAngle = this.attackAngle + (sign * 0.45);
       const readyAngle = isFacingLeft ? 2.45 : -0.75;
-      const curAim = Phaser.Math.Angle.Lerp(restAngle, readyAngle, p);
+      const curAim = lerpAngle(restAngle, readyAngle, p);
       this.hammer.setRotation(curAim + Math.PI / 4);
       this.hammer.setScale(isFacingLeft ? -this.hammerScale : this.hammerScale, this.hammerScale);
 
