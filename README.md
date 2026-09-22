@@ -39,9 +39,15 @@ Ett stämningsfullt mörkt 2D-actionrollspel i HTML5 och Phaser 3 med estetik, r
   - 8-vägs rörelse med WASD och piltangenter med normaliserad hastighet.
   - Fysisk tyngd i stegen (acceleration/retardation) och anpassad 2.5D-kollisionskropp ($14 \times 12$ px vid fötterna).
   - Vändning mot rörelseriktning samt fotstegsdamm.
-  - Sprint med <kbd>SKIFT</kbd> som förbrukar uthållighet (Stamina) och regenereras automatiskt.
-  - **Dodge Roll med <kbd>SPACE</kbd>**: Rullningsanimation (360° somersault), 15% staminakostnad, i-frames (odödlighetsfönster), eteriska efterbilder (*ghost trail*) av den nya modellen och dammpuff.
-  - **Svärdsattack med Vänsterklick**: Riktat storsvärdshugg mot muspekarens position i en 100-graders kon, svepande glödande svärdsbåge, flygande cinders/gnistor, kraftfullt framåtkliv (*lunge*), subtilt skärmskak och 20% staminakostnad.
+  - **Kolossal Krigshammare i Höger Hand (Colossal Warhammer)**:
+    - Spelaren är nu beväpnad med en kolossal krigshammare i höger hand, skalad till $2.8\times$ så att den är **något större än karaktären själv**.
+    - **Stridsredo hållning & Gånggungning**: Hammaren vilar lutad snett uppåt/framåt i höger hand vid vila och gungar subtilt i takt med stegen vid gång och sprint.
+    - **Tung Överhandskross (<kbd>Vänsterklick</kbd>)**:
+      1. **Upplyft**: Hammaren lyfts högt över huvudet för att bygga kraft.
+      2. **Krossving**: Accelererar nedåt i en våldsam båge mot muspekaren.
+      3. **Markkross & Chockvåg**: Slår ned i stengolvet med full kraft och utlöser en cirkulär stensprick-chockvåg (`hammer_shockwave`), flygande stenrester, cinders och tung skärmskakning.
+      4. **Ökad Krosskada**: Delar ut 45 krosskada (stagger) mot Hollow Knights och Cursed Wraiths.
+  - **Dodge Roll med <kbd>SPACE</kbd>**: Rullningsanimation (360° somersault), 15% staminakostnad, i-frames (odödlighetsfönster), eteriska efterbilder (*ghost trail*) av både riddaren och hammaren samt dammpuff.
 - **Fiender & AI (Hollow Knights & Cursed Wraiths)**:
   - **Hollow Knight**: Tungt bepansrad odöd riddare som patrullerar helgedomens pelargångar med telegraferat svärdshugg, stagger-reaktion och +250 Souls vid fall.
   - **Cursed Wraith (Spöke med glödande röda ögon)**: Eteriskt, halvgenomskinligt spöke med fladdrande slöjor och två genomträngande lysande röda ögon. Svävar ljudlöst med en mjuk sinusrörelse, fasar rakt igenom helgedomens pelare (*phasing*), och utför en snabb spektral kloattack med röda rivsår. Belönar +180 Souls vid förintelse.

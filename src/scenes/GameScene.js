@@ -471,14 +471,14 @@ export default class GameScene extends Phaser.Scene {
         enemy.update(time, delta, this.player);
       });
 
-      // Combat hit detection: player sword attack cone hitting enemies
+      // Combat hit detection: player colossal hammer smash hitting enemies
       if (this.player.isAttacking) {
         this.enemies.getChildren().forEach(enemy => {
           if (enemy.state !== 'DEAD' && enemy.lastHitSwingId !== this.player.currentSwingId) {
             if (this.player.isPointInAttackCone(enemy.x, enemy.y)) {
               enemy.lastHitSwingId = this.player.currentSwingId;
-              const swordDamage = 35; // 2 solid greatsword hits to fell a knight
-              enemy.takeDamage(swordDamage, this.player.x, this.player.y);
+              const hammerDamage = 45; // Heavy crushing colossal hammer impact
+              enemy.takeDamage(hammerDamage, this.player.x, this.player.y);
             }
           }
         });

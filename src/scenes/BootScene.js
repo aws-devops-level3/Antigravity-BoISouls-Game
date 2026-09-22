@@ -12,12 +12,16 @@ export default class BootScene extends Phaser.Scene {
       frameWidth: 32,
       frameHeight: 32,
     });
+    this.load.image('hammer', '/assets/hammer.png');
   }
 
   create() {
     // Set nearest-neighbor filtering for crisp retro pixel art
     if (this.textures.exists('player_knight')) {
       this.textures.get('player_knight').setFilter(Phaser.Textures.FilterMode.NEAREST);
+    }
+    if (this.textures.exists('hammer')) {
+      this.textures.get('hammer').setFilter(Phaser.Textures.FilterMode.NEAREST);
     }
 
     // Player character animations
@@ -49,6 +53,7 @@ export default class BootScene extends Phaser.Scene {
     this.createDustTexture();
     this.createLightTexture();
     this.createSlashTexture();
+    this.createHammerShockwaveTexture();
     this.createEnemyKnightTexture();
     this.createEnemySlashTexture();
     this.createGhostTexture();
@@ -723,6 +728,42 @@ export default class BootScene extends Phaser.Scene {
     ctx.beginPath();
     ctx.arc(8, 54, 4, 0, Math.PI * 2);
     ctx.stroke();
+
+    canvas.refresh();
+  }
+
+  // Stone crack fissure and dust shockwave on colossal hammer ground impact
+  createHammerShockwaveTexture() {
+    const canvas = this.textures.createCanvas('hammer_shockwave', 96, 96);
+    const ctx = canvas.getContext();
+
+    // Radial gold/ember impact glow
+    const grad = ctx.createRadialGradient(48, 48, 8, 48, 48, 46);
+    grad.addColorStop(0, 'rgba(255, 230, 160, 0.9)');
+    grad.addColorStop(0.35, 'rgba(230, 140, 40, 0.65)');
+    grad.addColorStop(0.7, 'rgba(120, 60, 20, 0.35)');
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(48, 48, 46, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Heavy jagged stone fractures
+    ctx.strokeStyle = '#fff5d0';
+    ctx.lineWidth = 2.5;
+    const crackAngles = [0, 45, 90, 135, 180, 225, 270, 315];
+    crackAngles.forEach((deg, idx) => {
+      const rad = deg * (Math.PI / 180);
+      ctx.beginPath();
+      ctx.moveTo(48, 48);
+      const midR = 20 + ((idx % 2 === 0) ? 6 : -4);
+      const midX = 48 + Math.cos(rad + 0.15) * midR;
+      const midY = 48 + Math.sin(rad + 0.15) * midR;
+      ctx.lineTo(midX, midY);
+      const endR = 38 + ((idx % 3 === 0) ? 6 : -3);
+      ctx.lineTo(48 + Math.cos(rad - 0.12) * endR, 48 + Math.sin(rad - 0.12) * endR);
+      ctx.stroke();
+    });
 
     canvas.refresh();
   }

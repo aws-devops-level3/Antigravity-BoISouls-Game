@@ -47,16 +47,24 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.lastFacingVector = new Phaser.Math.Vector2(0, 1); // default facing forward
     this.afterimageTimer = 0;
 
-    // Sword Attack attributes (Greatsword cone slash)
+    // Colossal Warhammer equipped in Right Hand (slightly larger than player)
+    this.hammerScale = 2.8;
+    this.hammer = scene.add.sprite(x, y, 'hammer');
+    this.hammer.setOrigin(0.18, 0.82); // Grip pivot
+    this.hammer.setScale(this.hammerScale);
+    this.hammer.setDepth(this.depth + 1);
+
+    // Hammer Attack attributes (Heavy overhead smash)
     this.isAttacking = false;
     this.attackTimer = 0;
-    this.attackDuration = 0.32; // seconds
-    this.attackStaminaCost = 20; // 20% stamina cost (20 points)
+    this.attackDuration = 0.44; // seconds (colossal hammer swing timing)
+    this.attackStaminaCost = 22; // 22% stamina cost
     this.attackAngle = 0;
-    this.attackRange = 68; // Cone reach in pixels
-    this.attackArc = Phaser.Math.DegToRad(100); // 100-degree sweep cone
+    this.attackRange = 78; // Extended reach for colossal hammer
+    this.attackArc = Phaser.Math.DegToRad(110); // 110-degree sweep cone
     this.attackCooldownTimer = 0;
     this.currentSwingId = 0;
+    this.hasTriggeredSmash = false;
 
     // Movement direction vector
     this.moveVector = new Phaser.Math.Vector2(0, 0);
@@ -128,6 +136,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       this.handleInput(dt);
       this.handleMovement(dt);
       this.handleAnimation(dt);
+      this.updateWeapon(dt);
     }
 
     this.updateLight();
@@ -283,6 +292,26 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
         ghost.destroy();
       },
     });
+
+    if (this.hammer) {
+      const ghostHammer = this.scene.add.sprite(this.hammer.x, this.hammer.y, 'hammer');
+      ghostHammer.setOrigin(this.hammer.originX, this.hammer.originY);
+      ghostHammer.setRotation(this.hammer.rotation);
+      ghostHammer.setScale(this.hammer.scaleX, this.hammer.scaleY);
+      ghostHammer.setAlpha(0.45);
+      ghostHammer.setTint(0x7799bb);
+      ghostHammer.setDepth(this.hammer.depth - 1);
+
+      this.scene.tweens.add({
+        targets: ghostHammer,
+        alpha: 0,
+        duration: 250,
+        ease: 'Sine.easeOut',
+        onComplete: () => {
+          ghostHammer.destroy();
+        },
+      });
+    }
   }
 
   tryAttack(pointer) {
@@ -302,10 +331,11 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.attackTimer = 0;
     this.isSprinting = false;
     this.currentSwingId++;
+    this.hasTriggeredSmash = false;
 
     // Deduct stamina and pause regen
     this.stamina = Math.max(0, this.stamina - this.attackStaminaCost);
-    this.staminaRegenDelayTimer = 0.55;
+    this.staminaRegenDelayTimer = 0.6;
 
     // Calculate angle towards mouse world position
     const targetX = pointer.worldX;
@@ -317,70 +347,61 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.setFlipX(isFacingLeft);
     this.lastFacingVector.set(Math.cos(this.attackAngle), Math.sin(this.attackAngle));
 
-    // Forward lunge impulse
-    const lungeSpeed = 140;
+    // Initial forward lunge impulse
+    const lungeSpeed = 160;
     this.body.setVelocity(
       Math.cos(this.attackAngle) * lungeSpeed,
       Math.sin(this.attackAngle) * lungeSpeed
     );
 
-    // Subtle Souls impact screen shake
-    this.scene.cameras.main.shake(90, 0.0025);
-
-    // Create sweeping crescent slash effect in attack cone
-    this.createSlashEffect(this.attackAngle, isFacingLeft);
-
     // Dust at feet from forceful footwork
     this.dustEmitter.emitParticleAt(this.x, this.y + 16, 3);
   }
 
-  createSlashEffect(angle, flip) {
-    // Spawn slash arc slightly in front of player
-    const spawnDist = 20;
-    const spawnX = this.x + Math.cos(angle) * spawnDist;
-    const spawnY = this.y + Math.sin(angle) * spawnDist;
+  triggerHammerImpact() {
+    // Calculate impact epicenter at the hammer head's landing position
+    const impactDist = 48;
+    const impactX = this.x + Math.cos(this.attackAngle) * impactDist;
+    const impactY = this.y + Math.sin(this.attackAngle) * impactDist;
 
-    const slash = this.scene.add.sprite(spawnX, spawnY, 'slash_arc');
-    slash.setOrigin(0.2, 0.5); // Pivot at the blade base
-    slash.setRotation(angle);
-    slash.setScale(0.7, 0.7);
-    slash.setAlpha(0.95);
-    slash.setDepth(this.depth + 2);
-
-    // Quick sweeping expansion and fade
+    // Expanding stone fracture shockwave ring
+    const wave = this.scene.add.sprite(impactX, impactY, 'hammer_shockwave');
+    wave.setScale(0.25);
+    wave.setAlpha(0.95);
+    wave.setDepth(this.depth - 1);
     this.scene.tweens.add({
-      targets: slash,
+      targets: wave,
       scaleX: 1.25,
-      scaleY: 1.35,
+      scaleY: 1.25,
       alpha: 0,
-      duration: 220,
+      duration: 320,
       ease: 'Cubic.easeOut',
-      onComplete: () => {
-        slash.destroy();
-      },
+      onComplete: () => wave.destroy(),
     });
 
-    // Glowing ember sparks along the cone
-    const sparkCount = 6;
-    const halfArc = this.attackArc / 2;
-    for (let i = 0; i < sparkCount; i++) {
-      const sparkAngle = angle - halfArc + (i / (sparkCount - 1)) * this.attackArc;
-      const speed = Phaser.Math.Between(60, 140);
-      const sparkX = this.x + Math.cos(sparkAngle) * 30;
-      const sparkY = this.y + Math.sin(sparkAngle) * 30;
+    // Dust explosion at impact site
+    this.dustEmitter.emitParticleAt(impactX, impactY, 8);
 
-      const spark = this.scene.add.particles(sparkX, sparkY, 'ember_spark', {
-        speed: { min: speed * 0.7, max: speed },
-        angle: { min: Phaser.Math.RadToDeg(sparkAngle) - 12, max: Phaser.Math.RadToDeg(sparkAngle) + 12 },
-        scale: { start: 0.85, end: 0 },
-        alpha: { start: 0.9, end: 0 },
-        lifespan: 220,
+    // Fiery cinders / sparks from crushed stone
+    const sparkCount = 8;
+    for (let i = 0; i < sparkCount; i++) {
+      const sparkAngle = this.attackAngle + (Math.random() - 0.5) * 1.6;
+      const speed = Phaser.Math.Between(70, 180);
+      const spark = this.scene.add.particles(impactX, impactY, 'ember_spark', {
+        speed: { min: speed * 0.6, max: speed },
+        angle: { min: Phaser.Math.RadToDeg(sparkAngle) - 15, max: Phaser.Math.RadToDeg(sparkAngle) + 15 },
+        scale: { start: 1.1, end: 0 },
+        alpha: { start: 0.95, end: 0 },
+        lifespan: 260,
         frequency: -1,
       });
       spark.emitParticle(1);
       spark.setDepth(this.depth + 3);
-      this.scene.time.delayedCall(240, () => spark.destroy());
+      this.scene.time.delayedCall(280, () => spark.destroy());
     }
+
+    // Heavy Soulsborne ground slam screen shake
+    this.scene.cameras.main.shake(120, 0.0055);
   }
 
   updateAttack(dt) {
@@ -388,35 +409,75 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     const progress = Math.min(1, this.attackTimer / this.attackDuration);
 
     // Decelerate lunge smoothly
-    const currentLunge = Phaser.Math.Linear(140, 0, Math.pow(progress, 1.3));
+    const currentLunge = Phaser.Math.Linear(160, 0, Math.pow(progress, 1.2));
     this.body.setVelocity(
       Math.cos(this.attackAngle) * currentLunge,
       Math.sin(this.attackAngle) * currentLunge
     );
 
-    // Body swing tilt (forward thrust and slash recoil)
-    const tiltDirection = Math.cos(this.attackAngle) < 0 ? -1 : 1;
-    if (progress < 0.45) {
-      // Wind-up and slash forward
-      this.setRotation(tiltDirection * (progress / 0.45) * 0.22);
-      this.scaleX = 1 + progress * 0.12;
+    const isFacingLeft = Math.cos(this.attackAngle) < 0;
+    const sign = isFacingLeft ? -1 : 1;
+
+    // Anchor hammer at right hand
+    const handX = this.x + (isFacingLeft ? -8 : 8);
+    const handY = this.y + 1;
+    this.hammer.setPosition(handX, handY);
+    this.hammer.setDepth(this.depth + 2);
+
+    if (progress < 0.35) {
+      // Phase 1: Heavy Wind-up (hammer raised high behind player)
+      const p = progress / 0.35;
+      const startAngle = isFacingLeft ? 2.45 : -0.75;
+      const windupAngle = this.attackAngle - (sign * 1.5);
+      const curAim = Phaser.Math.Angle.Lerp(startAngle, windupAngle, p);
+      this.hammer.setRotation(curAim + Math.PI / 4);
+      this.hammer.setScale(isFacingLeft ? -this.hammerScale : this.hammerScale, this.hammerScale);
+
+      // Player leans back under the weight
+      this.setRotation(-sign * p * 0.12);
+      this.setScale(this.baseScale, this.baseScale);
+    } else if (progress < 0.65) {
+      // Phase 2: Downward Smash (accelerates towards the ground)
+      const p = (progress - 0.35) / 0.30;
+      const easePow = Math.pow(p, 2.2);
+      const windupAngle = this.attackAngle - (sign * 1.5);
+      const endSmashAngle = this.attackAngle + (sign * 0.45);
+      const curAim = Phaser.Math.Angle.Lerp(windupAngle, endSmashAngle, easePow);
+      this.hammer.setRotation(curAim + Math.PI / 4);
+      this.hammer.setScale(isFacingLeft ? -this.hammerScale : this.hammerScale, this.hammerScale);
+
+      // Player lunges forward with the swing
+      this.setRotation(sign * Math.sin(p * Math.PI) * 0.18);
+      this.setScale(this.baseScale, this.baseScale);
+
+      // Ground impact at apex of swing
+      if (progress >= 0.52 && !this.hasTriggeredSmash) {
+        this.hasTriggeredSmash = true;
+        this.triggerHammerImpact();
+      }
     } else {
-      // Recovery follow-through
-      const recoveryProgress = (progress - 0.45) / 0.55;
-      this.setRotation(Phaser.Math.Linear(tiltDirection * 0.22, 0, recoveryProgress));
-      this.scaleX = Phaser.Math.Linear(1.12, 1.0, recoveryProgress);
+      // Phase 3: Recovery (hammer rests on the ground then rises)
+      const p = (progress - 0.65) / 0.35;
+      const restAngle = this.attackAngle + (sign * 0.45);
+      const readyAngle = isFacingLeft ? 2.45 : -0.75;
+      const curAim = Phaser.Math.Angle.Lerp(restAngle, readyAngle, p);
+      this.hammer.setRotation(curAim + Math.PI / 4);
+      this.hammer.setScale(isFacingLeft ? -this.hammerScale : this.hammerScale, this.hammerScale);
+
+      this.setRotation(Phaser.Math.Linear(sign * 0.15, 0, p));
+      this.setScale(this.baseScale, this.baseScale);
     }
 
     if (this.attackTimer >= this.attackDuration) {
       this.isAttacking = false;
       this.setRotation(0);
-      this.setScale(1, 1);
-      this.attackCooldownTimer = 0.08; // Short recovery window before next attack
+      this.setScale(this.baseScale, this.baseScale);
+      this.attackCooldownTimer = 0.12; // Recovery window before next attack
     }
   }
 
   isPointInAttackCone(targetX, targetY) {
-    if (!this.isAttacking) return false;
+    if (!this.isAttacking || this.attackTimer < this.attackDuration * 0.40) return false;
 
     const dist = Phaser.Math.Distance.Between(this.x, this.y, targetX, targetY);
     if (dist > this.attackRange) return false;
@@ -519,6 +580,33 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
+  updateWeapon(dt) {
+    if (!this.hammer) return;
+
+    if (this.isRolling) {
+      const spinDir = this.rollDirection.x < 0 ? -1 : 1;
+      this.hammer.setPosition(this.x, this.y);
+      this.hammer.setRotation(this.rotation - (spinDir * 0.4));
+      const tuck = 1 - 0.22 * Math.sin((this.rollTimer / this.rollDuration) * Math.PI);
+      const dirScale = this.rollDirection.x < 0 ? -this.hammerScale : this.hammerScale;
+      this.hammer.setScale(dirScale * tuck, this.hammerScale * tuck);
+      this.hammer.setDepth(this.depth + 1);
+    } else if (!this.isAttacking) {
+      const handOffsetX = this.flipX ? -8 : 8;
+      const handOffsetY = 1;
+      this.hammer.setPosition(this.x + handOffsetX, this.y + handOffsetY);
+      
+      const idleBaseAngle = this.flipX ? 2.45 : -0.75;
+      const sway = this.isMoving
+        ? Math.sin(this.walkCycle) * 0.14
+        : Math.sin(this.scene.time.now * 0.003) * 0.05;
+      
+      this.hammer.setRotation(idleBaseAngle + sway);
+      this.hammer.setScale(this.flipX ? -this.hammerScale : this.hammerScale, this.hammerScale);
+      this.hammer.setDepth(this.depth + 1);
+    }
+  }
+
   updateLight() {
     if (this.lightSource) {
       this.lightSource.x = this.x;
@@ -532,6 +620,9 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   destroy(fromScene) {
     if (this.scene && this.scene.input && this.pointerDownListener) {
       this.scene.input.off('pointerdown', this.pointerDownListener);
+    }
+    if (this.hammer) {
+      this.hammer.destroy();
     }
     if (this.lightSource) {
       this.lightSource.destroy();
