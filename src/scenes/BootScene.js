@@ -21,7 +21,9 @@ export default class BootScene extends Phaser.Scene {
     this.load.image('greatsword_bloody', '/assets/greatsword_bloody.png');
     this.load.image('knight_enemy', '/assets/knight_enemy.png');
     this.load.image('ghost_enemy', '/assets/ghost_enemy.png');
-    this.load.image('dungeon_level1', '/assets/dungeon_level1.jpg');
+    this.load.image('SoulsLevel1', '/assets/SoulsLevel1.png');
+    this.load.image('dungeon_level1', '/assets/SoulsLevel1.png');
+    this.load.json('SoulsChapel_vtt', '/assets/SoulsChapel.dd2vtt');
     this.load.json('level1_data', '/assets/SoulsLevel1.json');
   }
 

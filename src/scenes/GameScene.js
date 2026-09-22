@@ -32,7 +32,7 @@ export default class GameScene extends Phaser.Scene {
 
     // 1. Render Background based on active floor
     if (this.floor === 1) {
-      const bg = this.add.image(0, 0, 'dungeon_level1').setOrigin(0, 0);
+      const bg = this.add.image(0, 0, 'SoulsLevel1').setOrigin(0, 0);
       bg.setDisplaySize(worldWidth, worldHeight);
     } else {
       this.add.image(worldWidth / 2, worldHeight / 2, 'dungeon_bg_room2').setOrigin(0.5, 0.5);
@@ -99,67 +99,12 @@ export default class GameScene extends Phaser.Scene {
     this.createObstacle(width - 8, height / 2, 16, height); // Right
 
     if (this.floor === 1) {
-      const s = this.mapScale;
-      // Build Level 1 solid walls and pillars from SoulsLevel1.json scaled by s
-      const nonDoors = level1Data.walls.filter(w => w.door !== 1);
-
-      // Separate pillars (octagonal clusters of short segments) from straight structural walls
-      const shortSegs = [];
-      const longSegs = [];
-      nonDoors.forEach(w => {
-        const len = Math.hypot(w.c[2] - w.c[0], w.c[3] - w.c[1]);
-        if (len < 80) shortSegs.push(w);
-        else longSegs.push(w);
-      });
-
-      // Group short segments into pillar centers
-      const pillars = [];
-      shortSegs.forEach(w => {
-        const cx = (w.c[0] + w.c[2]) / 2;
-        const cy = (w.c[1] + w.c[3]) / 2;
-        let found = pillars.find(p => Math.hypot(p.x - cx, p.y - cy) < 60);
-        if (found) {
-          found.pts.push({ x: cx, y: cy });
-          found.x = found.pts.reduce((sum, pt) => sum + pt.x, 0) / found.pts.length;
-          found.y = found.pts.reduce((sum, pt) => sum + pt.y, 0) / found.pts.length;
-        } else {
-          pillars.push({ x: cx, y: cy, pts: [{ x: cx, y: cy }] });
-        }
-      });
-
-      // 1. Create Pillar Obstacles
-      pillars.forEach(p => {
-        this.createObstacle(Math.round(p.x * s), Math.round(p.y * s), 32, 32);
-      });
-
-      // 2. Create Structural Wall Obstacles
-      longSegs.forEach(w => {
-        const x1 = w.c[0] * s;
-        const y1 = w.c[1] * s;
-        const x2 = w.c[2] * s;
-        const y2 = w.c[3] * s;
-        const isH = Math.abs(y1 - y2) < 4;
-        if (isH) {
-          const minX = Math.min(x1, x2);
-          const maxX = Math.max(x1, x2);
-          const cx = (minX + maxX) / 2;
-          const cy = (y1 + y2) / 2;
-          this.createObstacle(cx, cy, maxX - minX + 14, 16);
-        } else {
-          const minY = Math.min(y1, y2);
-          const maxY = Math.max(y1, y2);
-          const cx = (x1 + x2) / 2;
-          const cy = (minY + maxY) / 2;
-          this.createObstacle(cx, cy, 16, maxY - minY + 14);
-        }
-      });
-
-      // 3. Crypt Props: Central Sarcophagus & Altar
-      this.createObstacle(Math.round(1550 * s), Math.round(2380 * s), Math.round(140 * s), Math.round(230 * s));
-      this.createObstacle(Math.round(1550 * s), Math.round(2530 * s), Math.round(70 * s), Math.round(70 * s)); // Bonfire hearth base
-
-      // 4. Hatch to Floor 2 in Upper Wooden Lodge (locked initially)
-      this.hatchObstacle = this.createObstacle(Math.round(5540 * s), Math.round(1050 * s), 60, 60);
+      const vttData = this.cache.json.get('SoulsChapel_vtt');
+      if (vttData) {
+        this.buildWallsFromDD2VTT(vttData, width, height);
+      } else {
+        this.buildWallsFromLegacyJSON(width, height);
+      }
     } else {
       // Room 2 (Torture Chamber) Props
       this.createObstacle(130, 160, 190, 250); // Torture Bed with corpse (Top Left)
@@ -170,6 +115,200 @@ export default class GameScene extends Phaser.Scene {
       this.createObstacle(1970, 775, 130, 290); // Crumbling Stone Wall (Mid-East wall)
       this.hatchObstacle = this.createObstacle(75, 715, 100, 110);
     }
+  }
+
+  buildWallsFromDD2VTT(vttData, worldWidth, worldHeight) {
+    const ppg = (vttData.resolution && vttData.resolution.pixels_per_grid) || 150;
+    const mapSizeX = (vttData.resolution && vttData.resolution.map_size && vttData.resolution.map_size.x) || 45;
+    const mapSizeY = (vttData.resolution && vttData.resolution.map_size && vttData.resolution.map_size.y) || 32;
+    const nativeWidth = mapSizeX * ppg; // 6750
+    const nativeHeight = mapSizeY * ppg; // 4800
+    const scaleX = worldWidth / nativeWidth;
+    const scaleY = worldHeight / nativeHeight;
+    const s = scaleX;
+    const wallThickness = 16;
+
+    this.collisionSegments = [];
+
+    // 1. Line of Sight (Solid Structural Walls from SoulsChapel.dd2vtt)
+    if (Array.isArray(vttData.line_of_sight)) {
+      vttData.line_of_sight.forEach(seg => {
+        if (Array.isArray(seg) && seg.length >= 2) {
+          const x1 = seg[0].x * ppg * scaleX;
+          const y1 = seg[0].y * ppg * scaleY;
+          const x2 = seg[1].x * ppg * scaleX;
+          const y2 = seg[1].y * ppg * scaleY;
+          this.createSegmentObstacle(x1, y1, x2, y2, wallThickness);
+          this.collisionSegments.push({ x1, y1, x2, y2, type: 'wall' });
+        }
+      });
+    }
+
+    // 2. Portals (Exterior Windows and Outer Perimeter Doors)
+    if (Array.isArray(vttData.portals)) {
+      vttData.portals.forEach(p => {
+        // Windows (closed: false) block player movement to keep character inside chapel rooms
+        // Outer perimeter doors (x <= 600) block escape into the black void
+        // Interior doorways (portals 12, 16, 19 connecting rooms) remain open for player passage
+        const isWindow = p.closed === false;
+        const isOuterDoor = p.closed === true && p.position && (p.position.x * ppg <= 600);
+        if ((isWindow || isOuterDoor) && p.bounds && p.bounds.length >= 2) {
+          const x1 = p.bounds[0].x * ppg * scaleX;
+          const y1 = p.bounds[0].y * ppg * scaleY;
+          const x2 = p.bounds[1].x * ppg * scaleX;
+          const y2 = p.bounds[1].y * ppg * scaleY;
+          this.createSegmentObstacle(x1, y1, x2, y2, wallThickness);
+          this.collisionSegments.push({ x1, y1, x2, y2, type: isWindow ? 'window' : 'outer_door' });
+        }
+      });
+    }
+
+    // 3. Stately Stone Pillars in Grand Checkered Hall and Crypt (12 pillars)
+    const pillarPositions = [
+      { x: 3685, y: 2633 }, { x: 3685, y: 3873 },
+      { x: 4307, y: 2632 }, { x: 4357, y: 3873 },
+      { x: 5028, y: 2633 }, { x: 5028, y: 3873 },
+      { x: 5700, y: 2633 }, { x: 5700, y: 3873 },
+      { x: 710, y: 1537 }, { x: 710, y: 2947 },
+      { x: 1285, y: 1537 }, { x: 1285, y: 2947 }
+    ];
+    pillarPositions.forEach(p => {
+      this.createObstacle(Math.round(p.x * s), Math.round(p.y * s), 32, 32);
+    });
+
+    // 4. Crypt Props: Central Sarcophagus & Altar
+    this.createObstacle(Math.round(1550 * s), Math.round(2380 * s), Math.round(140 * s), Math.round(230 * s));
+    this.createObstacle(Math.round(1550 * s), Math.round(2530 * s), Math.round(70 * s), Math.round(70 * s)); // Bonfire base
+
+    // 5. Floor 2 Transition Hatch in upper wooden lodge
+    this.hatchObstacle = this.createObstacle(Math.round(5540 * s), Math.round(1050 * s), 60, 60);
+
+    // Setup interactive debug visualizer for collision lines (Toggle with 'C' key)
+    this.setupCollisionDebugVisualizer();
+  }
+
+  buildWallsFromLegacyJSON(worldWidth, worldHeight) {
+    const s = this.mapScale;
+    const nonDoors = level1Data.walls.filter(w => w.door !== 1);
+    const shortSegs = [];
+    const longSegs = [];
+    nonDoors.forEach(w => {
+      const len = Math.hypot(w.c[2] - w.c[0], w.c[3] - w.c[1]);
+      if (len < 80) shortSegs.push(w);
+      else longSegs.push(w);
+    });
+
+    const pillars = [];
+    shortSegs.forEach(w => {
+      const cx = (w.c[0] + w.c[2]) / 2;
+      const cy = (w.c[1] + w.c[3]) / 2;
+      let found = pillars.find(p => Math.hypot(p.x - cx, p.y - cy) < 60);
+      if (found) {
+        found.pts.push({ x: cx, y: cy });
+        found.x = found.pts.reduce((sum, pt) => sum + pt.x, 0) / found.pts.length;
+        found.y = found.pts.reduce((sum, pt) => sum + pt.y, 0) / found.pts.length;
+      } else {
+        pillars.push({ x: cx, y: cy, pts: [{ x: cx, y: cy }] });
+      }
+    });
+
+    pillars.forEach(p => {
+      this.createObstacle(Math.round(p.x * s), Math.round(p.y * s), 32, 32);
+    });
+
+    longSegs.forEach(w => {
+      this.createSegmentObstacle(w.c[0] * s, w.c[1] * s, w.c[2] * s, w.c[3] * s, 16);
+    });
+
+    this.createObstacle(Math.round(1550 * s), Math.round(2380 * s), Math.round(140 * s), Math.round(230 * s));
+    this.createObstacle(Math.round(1550 * s), Math.round(2530 * s), Math.round(70 * s), Math.round(70 * s));
+    this.hatchObstacle = this.createObstacle(Math.round(5540 * s), Math.round(1050 * s), 60, 60);
+  }
+
+  createSegmentObstacle(x1, y1, x2, y2, thickness = 16) {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const length = Math.hypot(dx, dy);
+    if (length < 2) return null;
+
+    const isHorizontal = Math.abs(dy) <= Math.abs(dx);
+    let cx, cy, w, h;
+
+    if (isHorizontal) {
+      const minX = Math.min(x1, x2);
+      const maxX = Math.max(x1, x2);
+      w = maxX - minX + thickness;
+      h = thickness;
+      cx = (minX + maxX) / 2;
+      cy = (y1 + y2) / 2;
+    } else {
+      const minY = Math.min(y1, y2);
+      const maxY = Math.max(y1, y2);
+      w = thickness;
+      h = maxY - minY + thickness;
+      cx = (x1 + x2) / 2;
+      cy = (minY + maxY) / 2;
+    }
+
+    return this.createObstacle(cx, cy, w, h);
+  }
+
+  setupCollisionDebugVisualizer() {
+    this.collisionDebugGraphics = this.add.graphics().setDepth(999);
+    this.showCollisionDebug = false;
+
+    // Toggle collision line overlay with 'C'
+    this.input.keyboard.on('keydown-C', () => {
+      this.showCollisionDebug = !this.showCollisionDebug;
+      this.renderCollisionDebug();
+      this.showToast(
+        this.showCollisionDebug ? 'Kollisionslinjer: PÅ (Tryck C för att dölja)' : 'Kollisionslinjer: AV',
+        this.showCollisionDebug ? '#00ff88' : '#aaaaaa'
+      );
+    });
+  }
+
+  renderCollisionDebug() {
+    this.collisionDebugGraphics.clear();
+    if (!this.showCollisionDebug || !this.collisionSegments) return;
+
+    this.collisionSegments.forEach(seg => {
+      const color = seg.type === 'wall' ? 0x00ff88 : 0x00d4ff;
+      this.collisionDebugGraphics.lineStyle(3, color, 0.9);
+      this.collisionDebugGraphics.lineBetween(seg.x1, seg.y1, seg.x2, seg.y2);
+
+      // Vertex endpoints
+      this.collisionDebugGraphics.fillStyle(0xffff00, 1.0);
+      this.collisionDebugGraphics.fillCircle(seg.x1, seg.y1, 4);
+      this.collisionDebugGraphics.fillCircle(seg.x2, seg.y2, 4);
+    });
+  }
+
+  showToast(message, color = '#ffffff') {
+    const toast = this.add.text(
+      this.cameras.main.width / 2,
+      60,
+      message,
+      {
+        fontFamily: 'Cinzel, serif',
+        fontSize: '18px',
+        fontStyle: 'bold',
+        color: color,
+        stroke: '#000000',
+        strokeThickness: 4,
+        backgroundColor: '#0a0a0edd',
+        padding: { x: 16, y: 8 },
+      }
+    ).setOrigin(0.5, 0.5).setScrollFactor(0).setDepth(2000);
+
+    this.tweens.add({
+      targets: toast,
+      alpha: { from: 1, to: 0 },
+      y: 40,
+      delay: 1500,
+      duration: 500,
+      onComplete: () => toast.destroy(),
+    });
   }
 
   createObstacle(x, y, w, h) {
@@ -184,12 +323,29 @@ export default class GameScene extends Phaser.Scene {
 
     if (this.floor === 1) {
       const s = this.mapScale;
-      // 1. Pointlights imported from SoulsLevel1.json scaled by s
-      level1Data.lights.forEach((l, idx) => {
-        const colorHex = parseInt(l.tintColor.replace('#', '0x'), 16);
-        const radius = Math.max(70, Math.round(l.dim * 16 * s));
-        const intensity = l.bright > 15 ? 0.72 : 0.52;
-        const pl = this.add.pointlight(Math.round(l.x * s), Math.round(l.y * s), colorHex, radius, intensity, 0.055);
+      const vttData = this.cache.json.get('SoulsChapel_vtt');
+      const lightsList = (vttData && Array.isArray(vttData.lights)) ? vttData.lights : level1Data.lights;
+      const ppg = (vttData && vttData.resolution && vttData.resolution.pixels_per_grid) || 150;
+
+      // Pointlights imported from SoulsChapel.dd2vtt scaled by s
+      lightsList.forEach((l, idx) => {
+        let lx, ly, colorHex, radius, intensity;
+        if (l.position) {
+          lx = Math.round(l.position.x * ppg * s);
+          ly = Math.round(l.position.y * ppg * s);
+          const hexClean = (l.color && l.color.length === 8) ? l.color.substring(2) : (l.color || 'FFEBBF');
+          colorHex = parseInt(hexClean, 16);
+          radius = Math.max(70, Math.round((l.range || 4) * ppg * s * 0.75));
+          intensity = 0.65;
+        } else {
+          lx = Math.round(l.x * s);
+          ly = Math.round(l.y * s);
+          colorHex = parseInt(l.tintColor.replace('#', '0x'), 16);
+          radius = Math.max(70, Math.round(l.dim * 16 * s));
+          intensity = l.bright > 15 ? 0.72 : 0.52;
+        }
+
+        const pl = this.add.pointlight(lx, ly, colorHex, radius, intensity, 0.055);
 
         // Subtle flame flicker
         if (idx % 3 === 0) {
