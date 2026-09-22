@@ -5,6 +5,10 @@ export default class BootScene extends Phaser.Scene {
     super('BootScene');
   }
 
+  preload() {
+    this.load.image('dungeon_bg', '/assets/dungeon_background.jpg');
+  }
+
   create() {
     // Generate all game textures procedurally for a rich Dark Souls 3 aesthetic
     this.createFloorTexture();

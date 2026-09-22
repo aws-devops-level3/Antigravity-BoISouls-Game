@@ -10,48 +10,49 @@ export default class GameScene extends Phaser.Scene {
   }
 
   create() {
-    const worldWidth = 2400;
-    const worldHeight = 2400;
+    // Exact dimensions of the new dungeon background (2048 x 1536)
+    const worldWidth = 2048;
+    const worldHeight = 1536;
     this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
 
-    // 1. Render Gothic Stone Tile Floor
-    this.createWorldFloor(worldWidth, worldHeight);
+    // 1. Render Handcrafted Gothic Dungeon Battlemap Background
+    this.add.image(worldWidth / 2, worldHeight / 2, 'dungeon_bg').setOrigin(0.5, 0.5);
 
     // 2. Setup Collision Groups
     this.obstacles = this.physics.add.staticGroup();
 
-    // 3. Build Sanctuary Architecture (Walls & Pillars)
-    this.buildSanctuary(worldWidth, worldHeight);
+    // 3. Build Collision Boundaries matching the map props
+    this.buildObstacles(worldWidth, worldHeight);
 
-    // 4. Center Bonfire
-    this.createBonfire(worldWidth / 2, worldHeight / 2);
+    // 4. Dynamic Lighting for Hearth and Column Candles
+    this.createHearthAndTorches();
 
-    // 5. Spawn Ashen One (Player) near Bonfire
-    this.player = new Player(this, worldWidth / 2, worldHeight / 2 + 100);
+    // 5. Spawn Ashen One (Player) on the Red Carpet in the lower hall
+    this.player = new Player(this, 988, 1260);
 
-    // 6. Spawn Enemies (Hollow Knights & Cursed Ghosts)
+    // 6. Spawn Enemies (Hollow Knights & Cursed Wraiths)
     this.enemies = this.add.group();
     this.knights = this.add.group();
-    this.spawnEnemies(worldWidth / 2, worldHeight / 2);
+    this.spawnEnemies();
 
     // 7. Physics Collisions
     this.physics.add.collider(this.player, this.obstacles);
-    this.physics.add.collider(this.knights, this.obstacles); // Knights collide with pillars; ghosts phase through
+    this.physics.add.collider(this.knights, this.obstacles); // Knights collide with walls & pillars; ghosts phase through!
     this.physics.add.collider(this.player, this.enemies);
 
-    // 8. Ambient Floating Embers (Cinders of the First Flame)
+    // 8. Ambient Floating Cinders
     this.createEmberWeather(worldWidth, worldHeight);
 
-    // 8. Camera Settings - Smooth Soulsborne Lerp
+    // 9. Camera Settings - Smooth Soulsborne Lerp & Dark Vignette Zoom
     this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
     this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
-    this.cameras.main.setZoom(1.4);
+    this.cameras.main.setZoom(1.35);
 
-    // 9. HUD System
+    // 10. HUD System
     this.hud = new SoulsHUD(this);
 
-    // 10. Atmospheric Location Title Display
-    this.displayAreaTitle('ELDENS HELGEDOM', 'Firelink Shrine');
+    // 11. Atmospheric Location Title Display
+    this.displayAreaTitle('FÖRBANNADE SALEN', 'The Accursed Hall');
 
     // Handle Window Resize
     this.scale.on('resize', (gameSize) => {
@@ -59,105 +60,125 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
-  createWorldFloor(width, height) {
-    // Tiled floor using our procedural floor tile
-    this.add.tileSprite(width / 2, height / 2, width, height, 'floor_tile');
-  }
-
-  buildSanctuary(width, height) {
+  buildObstacles(width, height) {
     // Outer perimeter walls
-    const wallThickness = 64;
-    
-    // Top & Bottom walls
-    for (let x = 0; x < width; x += 64) {
-      this.createWallBlock(x + 32, 32);
-      this.createWallBlock(x + 32, height - 32);
-    }
-    // Left & Right walls
-    for (let y = 64; y < height - 64; y += 64) {
-      this.createWallBlock(32, y + 32);
-      this.createWallBlock(width - 32, y + 32);
-    }
+    this.createObstacle(width / 2, 10, width, 20); // Top wall
+    this.createObstacle(440, height - 10, 880, 20); // Bottom wall left of hearth
+    this.createObstacle(1570, height - 10, 940, 20); // Bottom wall right of hearth
+    this.createObstacle(10, height / 2, 20, height); // Left wall
+    this.createObstacle(width - 10, height / 2, 20, height); // Right wall
 
-    // Grand Hall Pillars (arranged in two gothic colonnades)
-    const centerX = width / 2;
-    const centerY = height / 2;
-    const pillarRows = [-400, -250, -100, 100, 250, 400];
+    // Central Stone Hearth / Fireplace (Bottom Center)
+    this.createObstacle(988, 1495, 230, 80);
 
-    pillarRows.forEach(offsetY => {
-      this.createPillar(centerX - 240, centerY + offsetY);
-      this.createPillar(centerX + 240, centerY + offsetY);
-    });
+    // Left Large Round Wooden Pillar
+    this.createObstacle(738, 570, 160, 150);
 
-    // Outer corner decorative pillars
-    const cornerOffsets = [
-      { x: centerX - 500, y: centerY - 450 },
-      { x: centerX + 500, y: centerY - 450 },
-      { x: centerX - 500, y: centerY + 450 },
-      { x: centerX + 500, y: centerY + 450 },
-    ];
-    cornerOffsets.forEach(pos => this.createPillar(pos.x, pos.y));
+    // Right Large Round Wooden Pillar
+    this.createObstacle(1245, 880, 160, 150);
+
+    // Crates & Spiderwebbed Rubble (Top Left)
+    this.createObstacle(250, 220, 200, 180);
+
+    // Bookshelf & Scrolls (Top Right)
+    this.createObstacle(1750, 70, 160, 90);
+
+    // Heavy Reinforced Chest (Left Edge)
+    this.createObstacle(75, 715, 100, 110);
+
+    // Stacked Barrels (Bottom Right)
+    this.createObstacle(1675, 1480, 210, 90);
   }
 
-  createWallBlock(x, y) {
-    const wall = this.obstacles.create(x, y, 'wall_tile');
-    wall.refreshBody();
+  createObstacle(x, y, w, h) {
+    const rect = this.add.rectangle(x, y, w, h, 0x000000, 0); // invisible static collision box
+    this.physics.add.existing(rect, true);
+    this.obstacles.add(rect);
+    return rect;
   }
 
-  createPillar(x, y) {
-    const pillar = this.obstacles.create(x, y, 'pillar');
-    // Set collision box to the base of the pillar for 2.5D depth
-    pillar.body.setSize(36, 24);
-    pillar.body.setOffset(14, 68);
-    pillar.refreshBody();
-    pillar.setDepth(y + 20); // Y-sorting depth
-  }
-
-  createBonfire(x, y) {
-    // Bonfire Sprite
-    const bonfire = this.add.sprite(x, y, 'bonfire');
-    bonfire.setDepth(y);
-
-    // Warm radial glow
+  createHearthAndTorches() {
+    // Glowing Fireplace at bottom center (988, 1490)
     if (this.add.pointlight && this.game.renderer.type === Phaser.WEBGL) {
-      const bonfireLight = this.add.pointlight(x, y + 10, 0xff6611, 240, 0.7, 0.04);
-      
-      // Flickering bonfire light animation
+      const hearthLight = this.add.pointlight(988, 1485, 0xff7711, 260, 0.75, 0.04);
       this.tweens.add({
-        targets: bonfireLight,
-        intensity: { from: 0.65, to: 0.85 },
-        radius: { from: 230, to: 255 },
-        duration: 300,
+        targets: hearthLight,
+        intensity: { from: 0.65, to: 0.88 },
+        radius: { from: 240, to: 275 },
+        duration: 280,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+
+      // Warm candle light on the left wooden pillar
+      const leftPillarLight = this.add.pointlight(738, 565, 0xffaa33, 140, 0.45, 0.06);
+      this.tweens.add({
+        targets: leftPillarLight,
+        intensity: { from: 0.38, to: 0.52 },
+        duration: 350,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+
+      // Warm candle light on the right wooden pillar
+      const rightPillarLight = this.add.pointlight(1245, 875, 0xffaa33, 140, 0.45, 0.06);
+      this.tweens.add({
+        targets: rightPillarLight,
+        intensity: { from: 0.38, to: 0.52 },
+        duration: 400,
         yoyo: true,
         repeat: -1,
         ease: 'Sine.easeInOut',
       });
     }
 
-    // Bonfire flame sparks
-    this.add.particles(x, y + 10, 'ember_spark', {
-      speed: { min: 20, max: 60 },
-      angle: { min: 240, max: 300 }, // Upwards
+    // Upward floating hearth flame embers
+    this.add.particles(988, 1485, 'ember_spark', {
+      speed: { min: 25, max: 65 },
+      angle: { min: 240, max: 300 }, // Upward into chimney
       scale: { start: 1, end: 0.2 },
-      alpha: { start: 0.9, end: 0 },
-      lifespan: { min: 600, max: 1200 },
-      frequency: 60,
+      alpha: { start: 0.95, end: 0 },
+      lifespan: { min: 600, max: 1300 },
+      frequency: 50,
+      blendMode: 'ADD',
+    });
+  }
+
+  spawnEnemies() {
+    // 1. Hollow Knights (Armored ground patrols)
+    const knight1 = new Enemy(this, 630, 680);
+    const knight2 = new Enemy(this, 1420, 780);
+    const knight3 = new Enemy(this, 988, 380);
+
+    [knight1, knight2, knight3].forEach(k => {
+      this.knights.add(k);
+      this.enemies.add(k);
+    });
+
+    // 2. Cursed Wraiths (Ghosts with glowing red eyes that phase through pillars)
+    const ghost1 = new GhostEnemy(this, 380, 1050); // Lurking by the blood stain & chest
+    const ghost2 = new GhostEnemy(this, 1640, 400); // Lurking near the skeleton & bookshelf
+
+    [ghost1, ghost2].forEach(g => {
+      this.enemies.add(g);
     });
   }
 
   createEmberWeather(width, height) {
-    // Ambient floating embers rising across the atmosphere (Souls Cinders)
+    // Ambient floating embers rising across the dungeon hall
     this.emberParticles = this.add.particles(0, 0, 'ember_spark', {
       emitZone: {
         source: new Phaser.Geom.Rectangle(0, 0, width, height),
         type: 'random',
       },
-      speedY: { min: -40, max: -15 },
+      speedY: { min: -35, max: -15 },
       speedX: { min: -10, max: 10 },
-      scale: { start: 0.8, end: 0.1 },
-      alpha: { start: 0.6, end: 0 },
+      scale: { start: 0.7, end: 0.1 },
+      alpha: { start: 0.55, end: 0 },
       lifespan: { min: 2500, max: 4500 },
-      frequency: 90,
+      frequency: 110,
       blendMode: 'ADD',
     });
     this.emberParticles.setDepth(999);
@@ -199,26 +220,6 @@ export default class GameScene extends Phaser.Scene {
         { alpha: 1, duration: 2200 },
         { alpha: 0, duration: 1800, ease: 'Sine.easeOut' },
       ],
-    });
-  }
-
-  spawnEnemies(centerX, centerY) {
-    // 1. Hollow Knights (Armored ground patrols)
-    const knight1 = new Enemy(this, centerX - 180, centerY - 200);
-    const knight2 = new Enemy(this, centerX + 180, centerY - 200);
-    const knight3 = new Enemy(this, centerX, centerY - 380);
-
-    [knight1, knight2, knight3].forEach(k => {
-      this.knights.add(k);
-      this.enemies.add(k);
-    });
-
-    // 2. Cursed Wraiths (Ethereal ghosts with glowing red eyes that phase through pillars)
-    const ghost1 = new GhostEnemy(this, centerX - 420, centerY + 240);
-    const ghost2 = new GhostEnemy(this, centerX + 420, centerY - 240);
-
-    [ghost1, ghost2].forEach(g => {
-      this.enemies.add(g);
     });
   }
 
