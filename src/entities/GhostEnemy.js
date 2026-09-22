@@ -69,14 +69,12 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
     this.hpBarGraphics.setDepth(2000);
     this.hpBarTimer = 0;
 
-    // Menacing red aura point light centered on its glowing red eyes (soft, static)
-    if (scene.add.pointlight && scene.game.renderer.type === Phaser.WEBGL) {
-      this.lightSource = scene.add.pointlight(x, y - 18, 0xff0022, 70, 0.35, 0.55);
-      this.lightSource.setAlpha(0.35);
-      this.lightSource.setBlendMode(Phaser.BlendModes.SCREEN);
-    } else {
-      this.lightSource = null;
-    }
+    // Subtle red aura light glow on the floor underneath ghost (depth 1, alpha 0.15, radius ~20px)
+    this.lightSource = scene.add.image(x, y - 18, 'soft_red_glow');
+    this.lightSource.setDisplaySize(40, 40);
+    this.lightSource.setAlpha(0.15);
+    this.lightSource.setDepth(1);
+    this.lightSource.setBlendMode(Phaser.BlendModes.ADD);
 
     // Wispy spirit mist trail emitter
     this.mistEmitter = scene.add.particles(0, 0, 'dust_puff', {

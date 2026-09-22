@@ -34,8 +34,10 @@ export default class GameScene extends Phaser.Scene {
     if (this.floor === 1) {
       const bg = this.add.image(0, 0, 'SoulsLevel1').setOrigin(0, 0);
       bg.setDisplaySize(worldWidth, worldHeight);
+      bg.setDepth(0);
     } else {
-      this.add.image(worldWidth / 2, worldHeight / 2, 'dungeon_bg_room2').setOrigin(0.5, 0.5);
+      const bg2 = this.add.image(worldWidth / 2, worldHeight / 2, 'dungeon_bg_room2').setOrigin(0.5, 0.5);
+      bg2.setDepth(0);
     }
 
     // 2. Setup Collision Groups
@@ -319,16 +321,14 @@ export default class GameScene extends Phaser.Scene {
   }
 
   createLighting() {
-    if (!this.add.pointlight || this.game.renderer.type !== Phaser.WEBGL) return;
-
     if (this.floor === 1) {
       const s = this.mapScale;
       const vttData = this.cache.json.get('SoulsChapel_vtt');
       const lightsList = (vttData && Array.isArray(vttData.lights)) ? vttData.lights : level1Data.lights;
       const ppg = (vttData && vttData.resolution && vttData.resolution.pixels_per_grid) || 150;
 
-      // Deduplicate / cluster overlapping lights that are close together (< 75 px)
-      // to completely prevent multiple lights stacking additively into blinding white spots
+      // Deduplicate / cluster overlapping lights that are close together (< 80 px)
+      // to completely prevent multiple lights stacking into bright spots
       const clusteredLights = [];
       lightsList.forEach(l => {
         let x, y, range, color;
@@ -349,49 +349,35 @@ export default class GameScene extends Phaser.Scene {
         }
       });
 
-      // Render static, non-pulsing, soft-falloff light sources
+      // 1. Soft, transparent radial gradient lights on the floor (behind characters & fire)
       clusteredLights.forEach((l) => {
         const lx = Math.round(l.x * s);
         const ly = Math.round(l.y * s);
 
-        // Convert to a warm, rich amber tone so it never washes out into white
-        let colorHex = 0xff9a2e; // Warm firelight amber
-        if (typeof l.color === 'string') {
-          const hexClean = l.color.replace('#', '').replace(/^ff/i, '');
-          const parsed = parseInt(hexClean, 16);
-          if (!isNaN(parsed) && parsed !== 0) {
-            const r = (parsed >> 16) & 0xff;
-            const g = (parsed >> 8) & 0xff;
-            const b = parsed & 0xff;
-            // Warm the color towards rich torch amber: low blue prevents white blowout
-            const warmedR = Math.min(255, r);
-            const warmedG = Math.round(g * 0.72);
-            const warmedB = Math.round(b * 0.2);
-            colorHex = (warmedR << 16) | (warmedG << 8) | warmedB;
-          }
-        }
+        // Radius reduced dramatically to max 1/3 of previous size (~12 to 18px radius => 24 to 36px diameter)
+        const radius = Math.max(12, Math.round(l.range * ppg * s * 0.11));
+        const diameter = radius * 2;
 
-        // Soft feathered radius and 50% scale
-        const radius = Math.max(30, Math.round(l.range * ppg * s * 0.32));
-        const intensity = 0.35; // Lowered intensity as requested (0.3 - 0.4)
-        const attenuation = 0.55; // Smoothstep S-curve falloff feathers softly to 0 at perimeter (no hard white circles)
-
-        const pl = this.add.pointlight(lx, ly, colorHex, radius, intensity, attenuation);
-        pl.setAlpha(0.35); // Opacity / alpha set to 0.35
-        pl.setBlendMode(Phaser.BlendModes.SCREEN); // Screen blend mode prevents additive white clipping
+        const glow = this.add.image(lx, ly, 'soft_light_glow');
+        glow.setDisplaySize(diameter, diameter);
+        glow.setAlpha(0.15); // Transparent subtle glow (between 0.1 and 0.2)
+        glow.setDepth(1); // BEHIND fire (depth 5) and characters (depth 10+)
+        glow.setBlendMode(Phaser.BlendModes.ADD);
       });
 
-      // 2. Cyan Water Fountain Glow in Grand Checkered Hall (Completely static, gentle glow)
+      // 2. Cyan Water Fountain Glow in Grand Checkered Hall (subtle, transparent radial glow)
       const fx = Math.round(4528 * s);
       const fy = Math.round(3217 * s);
-      const fountainGlow = this.add.pointlight(fx, fy, 0x00c8e6, 75, 0.35, 0.5);
-      fountainGlow.setAlpha(0.35);
-      fountainGlow.setBlendMode(Phaser.BlendModes.SCREEN);
+      const fountainGlow = this.add.image(fx, fy, 'soft_cyan_glow');
+      fountainGlow.setDisplaySize(48, 48); // 1/3 of previous radius 75 => ~24px radius, 48px diameter
+      fountainGlow.setAlpha(0.15);
+      fountainGlow.setDepth(1);
+      fountainGlow.setBlendMode(Phaser.BlendModes.ADD);
 
-      // 3. Bonfire / Sarcophagus Hearth Embers in Crypt (1550, 2527)
+      // 3. Bonfire / Sarcophagus Hearth Embers in Crypt (1550, 2527) - depth 5 above light (depth 1)
       const bx = Math.round(1550 * s);
       const by = Math.round(2527 * s);
-      this.add.particles(bx, by, 'ember_spark', {
+      const cryptFire = this.add.particles(bx, by, 'ember_spark', {
         speed: { min: 8, max: 20 },
         angle: { min: 240, max: 300 },
         scale: { start: 0.5, end: 0.1 },
@@ -400,11 +386,12 @@ export default class GameScene extends Phaser.Scene {
         frequency: 110,
         blendMode: 'ADD',
       });
+      cryptFire.setDepth(5);
 
-      // 4. Burning Fireplace Embers in Grand Checkered Hall (5740, 3900)
+      // 4. Burning Fireplace Embers in Grand Checkered Hall (5740, 3900) - depth 5 above light (depth 1)
       const fpx = Math.round(5740 * s);
       const fpy = Math.round(3900 * s);
-      this.add.particles(fpx, fpy, 'ember_spark', {
+      const hallFire = this.add.particles(fpx, fpy, 'ember_spark', {
         speed: { min: 10, max: 24 },
         angle: { min: 230, max: 310 },
         scale: { start: 0.5, end: 0.1 },
@@ -413,13 +400,16 @@ export default class GameScene extends Phaser.Scene {
         frequency: 100,
         blendMode: 'ADD',
       });
+      hallFire.setDepth(5);
     } else {
-      // Room 2 (Torture Chamber) - Completely static lights
-      const torchLight = this.add.pointlight(305, 65, 0xff8811, 140, 0.35, 0.5);
-      torchLight.setAlpha(0.35);
-      torchLight.setBlendMode(Phaser.BlendModes.SCREEN);
+      // Room 2 (Torture Chamber) - Subtle, transparent radial glow
+      const torchLight = this.add.image(305, 65, 'soft_light_glow');
+      torchLight.setDisplaySize(88, 88); // 1/3 of previous 280px diameter
+      torchLight.setAlpha(0.15);
+      torchLight.setDepth(1);
+      torchLight.setBlendMode(Phaser.BlendModes.ADD);
 
-      this.add.particles(305, 65, 'ember_spark', {
+      const torchFire = this.add.particles(305, 65, 'ember_spark', {
         speed: { min: 10, max: 25 },
         angle: { min: 240, max: 300 },
         scale: { start: 0.5, end: 0.1 },
@@ -428,11 +418,14 @@ export default class GameScene extends Phaser.Scene {
         frequency: 120,
         blendMode: 'ADD',
       });
+      torchFire.setDepth(5);
 
-      // Ambient Candlelight on the Dining Table (1435, 1290) - Static
-      const tableLight = this.add.pointlight(1435, 1290, 0xffaa44, 110, 0.35, 0.5);
-      tableLight.setAlpha(0.35);
-      tableLight.setBlendMode(Phaser.BlendModes.SCREEN);
+      // Ambient Candlelight on the Dining Table (1435, 1290)
+      const tableLight = this.add.image(1435, 1290, 'soft_light_glow');
+      tableLight.setDisplaySize(70, 70); // 1/3 of previous 220px diameter
+      tableLight.setAlpha(0.15);
+      tableLight.setDepth(1);
+      tableLight.setBlendMode(Phaser.BlendModes.ADD);
     }
   }
 
@@ -502,12 +495,12 @@ export default class GameScene extends Phaser.Scene {
     openHatch.setOrigin(0.5, 0.5);
     openHatch.setDepth(20);
 
-    // 3. Golden soul beacon light emanating from the open abyss (static, soft)
-    if (this.add.pointlight && this.game.renderer.type === Phaser.WEBGL) {
-      const hatchLight = this.add.pointlight(hatchX + 10, hatchY, 0xffaa22, 110, 0.35, 0.5);
-      hatchLight.setAlpha(0.35);
-      hatchLight.setBlendMode(Phaser.BlendModes.SCREEN);
-    }
+    // 3. Golden soul beacon light emanating from the open abyss (subtle, soft)
+    const hatchLight = this.add.image(hatchX + 10, hatchY, 'soft_light_glow');
+    hatchLight.setDisplaySize(70, 70);
+    hatchLight.setAlpha(0.15);
+    hatchLight.setDepth(1);
+    hatchLight.setBlendMode(Phaser.BlendModes.ADD);
 
     // 4. Golden soul particles floating upward into the room
     const hatchSparks = this.add.particles(hatchX + 8, hatchY, 'ember_spark', {

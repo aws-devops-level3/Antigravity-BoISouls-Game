@@ -118,14 +118,12 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     });
     this.dustTimer = 0;
 
-    // Point light around player (Dark Souls 3 dynamic torchlight aura - static, soft)
-    if (scene.add.pointlight && scene.game.renderer.type === Phaser.WEBGL) {
-      this.lightSource = scene.add.pointlight(x, y, 0xff7722, 100, 0.35, 0.55);
-      this.lightSource.setAlpha(0.35);
-      this.lightSource.setBlendMode(Phaser.BlendModes.SCREEN);
-    } else {
-      this.lightSource = null;
-    }
+    // Soft radial light glow on the floor underneath player (depth 1, alpha 0.15, radius ~28px)
+    this.lightSource = scene.add.image(x, y + 4, 'soft_light_glow');
+    this.lightSource.setDisplaySize(56, 56);
+    this.lightSource.setAlpha(0.15);
+    this.lightSource.setDepth(1);
+    this.lightSource.setBlendMode(Phaser.BlendModes.ADD);
   }
 
   update(time, delta) {
@@ -656,7 +654,6 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     if (this.lightSource) {
       this.lightSource.x = this.x;
       this.lightSource.y = this.y + 4;
-      this.lightSource.intensity = 0.35;
     }
   }
 

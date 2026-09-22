@@ -388,8 +388,9 @@ export default class BootScene extends Phaser.Scene {
     canvas.refresh();
   }
 
-  // Radial Darkness Light Mask (Dark Souls 3 dynamic torchlight)
+  // Radial Darkness Light Mask & Procedural Soft Radial Gradient Light Textures
   createLightTexture() {
+    // 1. Ambient darkness mask (512x512)
     const canvas = this.textures.createCanvas('light_mask', 512, 512);
     const ctx = canvas.getContext();
 
@@ -401,8 +402,44 @@ export default class BootScene extends Phaser.Scene {
 
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 512, 512);
-
     canvas.refresh();
+
+    // 2. Soft Light Glow (256x256): Smooth radial falloff from warm amber/gold in center to 0% opacity at edge
+    const canvasWarm = this.textures.createCanvas('soft_light_glow', 256, 256);
+    const ctxWarm = canvasWarm.getContext();
+    const gradWarm = ctxWarm.createRadialGradient(128, 128, 0, 128, 128, 128);
+    gradWarm.addColorStop(0, 'rgba(255, 195, 75, 0.9)');
+    gradWarm.addColorStop(0.25, 'rgba(255, 145, 30, 0.5)');
+    gradWarm.addColorStop(0.55, 'rgba(215, 85, 10, 0.18)');
+    gradWarm.addColorStop(0.85, 'rgba(160, 50, 5, 0.04)');
+    gradWarm.addColorStop(1.0, 'rgba(0, 0, 0, 0)'); // Exactly 0% opacity at edge
+    ctxWarm.fillStyle = gradWarm;
+    ctxWarm.fillRect(0, 0, 256, 256);
+    canvasWarm.refresh();
+
+    // 3. Soft Cyan Glow (256x256): Fountain glow with smooth radial falloff to 0% opacity
+    const canvasCyan = this.textures.createCanvas('soft_cyan_glow', 256, 256);
+    const ctxCyan = canvasCyan.getContext();
+    const gradCyan = ctxCyan.createRadialGradient(128, 128, 0, 128, 128, 128);
+    gradCyan.addColorStop(0, 'rgba(60, 220, 255, 0.85)');
+    gradCyan.addColorStop(0.3, 'rgba(30, 160, 220, 0.45)');
+    gradCyan.addColorStop(0.65, 'rgba(10, 80, 160, 0.15)');
+    gradCyan.addColorStop(1.0, 'rgba(0, 0, 0, 0)'); // Exactly 0% opacity at edge
+    ctxCyan.fillStyle = gradCyan;
+    ctxCyan.fillRect(0, 0, 256, 256);
+    canvasCyan.refresh();
+
+    // 4. Soft Red Glow (256x256): Enemy hollow knight & wraith aura with smooth radial falloff to 0% opacity
+    const canvasRed = this.textures.createCanvas('soft_red_glow', 256, 256);
+    const ctxRed = canvasRed.getContext();
+    const gradRed = ctxRed.createRadialGradient(128, 128, 0, 128, 128, 128);
+    gradRed.addColorStop(0, 'rgba(255, 35, 30, 0.85)');
+    gradRed.addColorStop(0.3, 'rgba(200, 20, 20, 0.4)');
+    gradRed.addColorStop(0.65, 'rgba(120, 10, 10, 0.12)');
+    gradRed.addColorStop(1.0, 'rgba(0, 0, 0, 0)'); // Exactly 0% opacity at edge
+    ctxRed.fillStyle = gradRed;
+    ctxRed.fillRect(0, 0, 256, 256);
+    canvasRed.refresh();
   }
 
   // Greatsword Sweeping Slash Arc Texture (96x96)
