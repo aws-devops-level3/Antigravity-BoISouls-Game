@@ -3,6 +3,7 @@ import Player from '../entities/Player.js';
 import Enemy from '../entities/Enemy.js';
 import GhostEnemy from '../entities/GhostEnemy.js';
 import SoulsHUD from '../ui/SoulsHUD.js';
+import level1Data from '../data/SoulsLevel1.json';
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
@@ -16,9 +17,11 @@ export default class GameScene extends Phaser.Scene {
   }
 
   create() {
-    // Exact dimensions of the dungeon background (2048 x 1536)
-    const worldWidth = 2048;
-    const worldHeight = 1536;
+    // Dynamic world bounds:
+    // Floor 1: SoulsLevel1 Battlemap (6750 x 4800)
+    // Floor 2: Torture Chamber Crypt (2048 x 1536)
+    const worldWidth = this.floor === 1 ? 6750 : 2048;
+    const worldHeight = this.floor === 1 ? 4800 : 1536;
     this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
 
     // State flags for hatch and room progression
@@ -26,10 +29,12 @@ export default class GameScene extends Phaser.Scene {
     this.isTransitioning = false;
 
     // 1. Render Background based on active floor
-    // Floor 1: Gothic Dungeon Hall (dungeon_bg)
-    // Floor 2: Torture Chamber / Dining Crypt (dungeon_bg_room2)
-    const bgKey = this.floor === 1 ? 'dungeon_bg' : 'dungeon_bg_room2';
-    this.add.image(worldWidth / 2, worldHeight / 2, bgKey).setOrigin(0.5, 0.5);
+    if (this.floor === 1) {
+      const bg = this.add.image(0, 0, 'dungeon_level1').setOrigin(0, 0);
+      bg.setDisplaySize(worldWidth, worldHeight);
+    } else {
+      this.add.image(worldWidth / 2, worldHeight / 2, 'dungeon_bg_room2').setOrigin(0.5, 0.5);
+    }
 
     // 2. Setup Collision Groups
     this.obstacles = this.physics.add.staticGroup();
@@ -41,10 +46,10 @@ export default class GameScene extends Phaser.Scene {
     this.createLighting();
 
     // 5. Spawn Ashen One (Player)
-    // Floor 1: Spawns in lower hall on carpet near hearth (988, 1260)
+    // Floor 1: Beside the crypt bonfire / sarcophagus (1550, 2527)
     // Floor 2: Enters from the northern door (988, 200)
-    const spawnX = 988;
-    const spawnY = this.floor === 1 ? 1260 : 200;
+    const spawnX = this.floor === 1 ? 1550 : 988;
+    const spawnY = this.floor === 1 ? 2527 : 200;
     this.player = new Player(this, spawnX, spawnY);
     this.player.souls = this.initialSouls;
     this.player.health = this.initialHealth;
@@ -65,7 +70,7 @@ export default class GameScene extends Phaser.Scene {
     // 9. Camera Settings - Smooth Soulsborne Lerp & Dark Vignette Zoom
     this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
     this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
-    this.cameras.main.setZoom(1.35);
+    this.cameras.main.setZoom(this.floor === 1 ? 1.15 : 1.35);
     this.cameras.main.fadeIn(700, 0, 0, 0);
 
     // 10. HUD System
@@ -73,7 +78,7 @@ export default class GameScene extends Phaser.Scene {
 
     // 11. Atmospheric Location Title Display
     if (this.floor === 1) {
-      this.displayAreaTitle('FÖRBANNADE SALEN', 'The Accursed Hall - Våning 1');
+      this.displayAreaTitle('FÖRBANNADE SALEN', 'The Accursed Crypts & Grand Halls - Våning 1');
     } else {
       this.displayAreaTitle('TORTYRKAMMAREN', 'The Torture Chamber - Våning 2');
     }
@@ -85,21 +90,70 @@ export default class GameScene extends Phaser.Scene {
   }
 
   buildObstacles(width, height) {
-    // Outer perimeter walls (always present)
-    this.createObstacle(width / 2, 10, width, 20); // Top wall
-    this.createObstacle(width / 2, height - 10, width, 20); // Bottom wall
-    this.createObstacle(10, height / 2, 20, height); // Left wall
-    this.createObstacle(width - 10, height / 2, 20, height); // Right wall
+    // Outer perimeter boundaries (always prevent escaping the map)
+    this.createObstacle(width / 2, 8, width, 16); // Top
+    this.createObstacle(width / 2, height - 8, width, 16); // Bottom
+    this.createObstacle(8, height / 2, 16, height); // Left
+    this.createObstacle(width - 8, height / 2, 16, height); // Right
 
     if (this.floor === 1) {
-      // Room 1 Props
-      this.createObstacle(988, 1495, 230, 80); // Central Hearth
-      this.createObstacle(738, 570, 160, 150); // Left Round Pillar
-      this.createObstacle(1245, 880, 160, 150); // Right Round Pillar
-      this.createObstacle(250, 220, 200, 180); // Crates (Top Left)
-      this.createObstacle(1750, 70, 160, 90); // Bookshelf (Top Right)
-      this.hatchObstacle = this.createObstacle(75, 715, 100, 110); // Closed Hatch (Left)
-      this.createObstacle(1675, 1480, 210, 90); // Stacked Barrels (Bottom Right)
+      // Build Level 1 solid walls and pillars from SoulsLevel1.json
+      const nonDoors = level1Data.walls.filter(w => w.door !== 1);
+
+      // Separate pillars (octagonal clusters of short segments) from straight structural walls
+      const shortSegs = [];
+      const longSegs = [];
+      nonDoors.forEach(w => {
+        const len = Math.hypot(w.c[2] - w.c[0], w.c[3] - w.c[1]);
+        if (len < 80) shortSegs.push(w);
+        else longSegs.push(w);
+      });
+
+      // Group short segments into pillar centers
+      const pillars = [];
+      shortSegs.forEach(w => {
+        const cx = (w.c[0] + w.c[2]) / 2;
+        const cy = (w.c[1] + w.c[3]) / 2;
+        let found = pillars.find(p => Math.hypot(p.x - cx, p.y - cy) < 60);
+        if (found) {
+          found.pts.push({ x: cx, y: cy });
+          found.x = found.pts.reduce((sum, pt) => sum + pt.x, 0) / found.pts.length;
+          found.y = found.pts.reduce((sum, pt) => sum + pt.y, 0) / found.pts.length;
+        } else {
+          pillars.push({ x: cx, y: cy, pts: [{ x: cx, y: cy }] });
+        }
+      });
+
+      // 1. Create Pillar Obstacles
+      pillars.forEach(p => {
+        this.createObstacle(p.x, p.y, 66, 66);
+      });
+
+      // 2. Create Structural Wall Obstacles
+      longSegs.forEach(w => {
+        const [x1, y1, x2, y2] = w.c;
+        const isH = Math.abs(y1 - y2) < 8;
+        if (isH) {
+          const minX = Math.min(x1, x2);
+          const maxX = Math.max(x1, x2);
+          const cx = (minX + maxX) / 2;
+          const cy = (y1 + y2) / 2;
+          this.createObstacle(cx, cy, maxX - minX + 26, 28);
+        } else {
+          const minY = Math.min(y1, y2);
+          const maxY = Math.max(y1, y2);
+          const cx = (x1 + x2) / 2;
+          const cy = (minY + maxY) / 2;
+          this.createObstacle(cx, cy, 28, maxY - minY + 26);
+        }
+      });
+
+      // 3. Crypt Props: Central Sarcophagus & Altar
+      this.createObstacle(1550, 2380, 140, 230);
+      this.createObstacle(1550, 2530, 70, 70); // Bonfire hearth base
+
+      // 4. Hatch to Floor 2 in Upper Wooden Lodge (locked initially)
+      this.hatchObstacle = this.createObstacle(5540, 1050, 100, 100);
     } else {
       // Room 2 (Torture Chamber) Props
       this.createObstacle(130, 160, 190, 250); // Torture Bed with corpse (Top Left)
@@ -108,6 +162,7 @@ export default class GameScene extends Phaser.Scene {
       this.createObstacle(1435, 1300, 430, 240); // Large Dining Table & Chairs (Bottom Right)
       this.createObstacle(1835, 175, 310, 260); // Smashed Barrels, Skeleton & Rubble (Top Right)
       this.createObstacle(1970, 775, 130, 290); // Crumbling Stone Wall (Mid-East wall)
+      this.hatchObstacle = this.createObstacle(75, 715, 100, 110);
     }
   }
 
@@ -122,45 +177,58 @@ export default class GameScene extends Phaser.Scene {
     if (!this.add.pointlight || this.game.renderer.type !== Phaser.WEBGL) return;
 
     if (this.floor === 1) {
-      // Room 1 Hearth Fireplace & Column Candles
-      const hearthLight = this.add.pointlight(988, 1485, 0xff7711, 260, 0.75, 0.04);
+      // 1. Pointlights imported from SoulsLevel1.json
+      level1Data.lights.forEach((l, idx) => {
+        const colorHex = parseInt(l.tintColor.replace('#', '0x'), 16);
+        const radius = Math.max(130, Math.round(l.dim * 16));
+        const intensity = l.bright > 15 ? 0.72 : 0.52;
+        const pl = this.add.pointlight(l.x, l.y, colorHex, radius, intensity, 0.055);
+
+        // Subtle flame flicker
+        if (idx % 3 === 0) {
+          this.tweens.add({
+            targets: pl,
+            intensity: { from: intensity * 0.88, to: intensity * 1.12 },
+            radius: { from: radius * 0.95, to: radius * 1.05 },
+            duration: Phaser.Math.Between(260, 420),
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut',
+          });
+        }
+      });
+
+      // 2. Cyan Water Fountain Shimmer in Grand Checkered Hall (4528, 3217)
+      const fountainGlow = this.add.pointlight(4528, 3217, 0x00e5ff, 280, 0.85, 0.04);
       this.tweens.add({
-        targets: hearthLight,
-        intensity: { from: 0.65, to: 0.88 },
-        radius: { from: 240, to: 275 },
-        duration: 280,
+        targets: fountainGlow,
+        intensity: { from: 0.75, to: 0.95 },
+        radius: { from: 260, to: 300 },
+        duration: 600,
         yoyo: true,
         repeat: -1,
         ease: 'Sine.easeInOut',
       });
 
-      const leftPillarLight = this.add.pointlight(738, 565, 0xffaa33, 140, 0.45, 0.06);
-      this.tweens.add({
-        targets: leftPillarLight,
-        intensity: { from: 0.38, to: 0.52 },
-        duration: 350,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.easeInOut',
-      });
-
-      const rightPillarLight = this.add.pointlight(1245, 875, 0xffaa33, 140, 0.45, 0.06);
-      this.tweens.add({
-        targets: rightPillarLight,
-        intensity: { from: 0.38, to: 0.52 },
-        duration: 400,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.easeInOut',
-      });
-
-      this.add.particles(988, 1485, 'ember_spark', {
-        speed: { min: 25, max: 65 },
-        angle: { min: 240, max: 300 },
-        scale: { start: 1, end: 0.2 },
+      // 3. Bonfire / Sarcophagus Hearth Embers in Crypt (1550, 2527)
+      this.add.particles(1550, 2527, 'ember_spark', {
+        speed: { min: 20, max: 55 },
+        angle: { min: 230, max: 310 },
+        scale: { start: 1, end: 0.1 },
         alpha: { start: 0.95, end: 0 },
-        lifespan: { min: 600, max: 1300 },
-        frequency: 50,
+        lifespan: { min: 700, max: 1400 },
+        frequency: 60,
+        blendMode: 'ADD',
+      });
+
+      // 4. Burning Fireplace Embers in Grand Checkered Hall (5740, 3900)
+      this.add.particles(5740, 3900, 'ember_spark', {
+        speed: { min: 25, max: 70 },
+        angle: { min: 220, max: 320 },
+        scale: { start: 1.1, end: 0.2 },
+        alpha: { start: 0.95, end: 0 },
+        lifespan: { min: 600, max: 1200 },
+        frequency: 45,
         blendMode: 'ADD',
       });
     } else {
@@ -201,20 +269,31 @@ export default class GameScene extends Phaser.Scene {
 
   spawnEnemies() {
     if (this.floor === 1) {
-      // Floor 1: 3 Knights, 2 Ghosts
-      const knight1 = new Enemy(this, 630, 680);
-      const knight2 = new Enemy(this, 1420, 780);
-      const knight3 = new Enemy(this, 988, 380);
+      // Floor 1 (Accursed Crypts & Grand Halls): 5 Knights, 5 Ghosts across map wings
+      // 1. Crypt Chamber (West)
+      const knight1 = new Enemy(this, 1050, 2200);
+      const knight2 = new Enemy(this, 2100, 2000);
+      const ghost1 = new GhostEnemy(this, 800, 2700);
 
-      [knight1, knight2, knight3].forEach(k => {
+      // 2. Forest Passage & Outdoors (Mid)
+      const ghost2 = new GhostEnemy(this, 3050, 3100);
+      const ghost3 = new GhostEnemy(this, 3200, 1800);
+
+      // 3. Grand Checkered Hall (East)
+      const knight3 = new Enemy(this, 4000, 3200);
+      const knight4 = new Enemy(this, 5300, 3200);
+      const ghost4 = new GhostEnemy(this, 4528, 3217); // Circling the water fountain
+
+      // 4. Upper Wooden Lodge (North-East)
+      const knight5 = new Enemy(this, 5500, 1200);
+      const ghost5 = new GhostEnemy(this, 5850, 850);
+
+      [knight1, knight2, knight3, knight4, knight5].forEach(k => {
         this.knights.add(k);
         this.enemies.add(k);
       });
 
-      const ghost1 = new GhostEnemy(this, 380, 1050);
-      const ghost2 = new GhostEnemy(this, 1640, 400);
-
-      [ghost1, ghost2].forEach(g => {
+      [ghost1, ghost2, ghost3, ghost4, ghost5].forEach(g => {
         this.enemies.add(g);
       });
     } else {
@@ -247,8 +326,8 @@ export default class GameScene extends Phaser.Scene {
     }
 
     // 2. Spawn the Open Hatch Sprite with descending stairs
-    const hatchX = 75;
-    const hatchY = 715;
+    const hatchX = this.floor === 1 ? 5540 : 75;
+    const hatchY = this.floor === 1 ? 1050 : 715;
     const openHatch = this.add.sprite(hatchX, hatchY, 'open_hatch');
     openHatch.setOrigin(0.5, 0.5);
     openHatch.setDepth(20);
@@ -315,7 +394,11 @@ export default class GameScene extends Phaser.Scene {
       strokeThickness: 3,
     }).setOrigin(0.5);
 
-    const subTitle = this.add.text(0, 20, 'Luckan i västra väggen har öppnats — Stig ned i djupet', {
+    const subTitleText = this.floor === 1
+      ? 'Luckan i det norra rummet har öppnats — Stig ned i djupet'
+      : 'Luckan i västra väggen har öppnats — Stig ned i djupet';
+
+    const subTitle = this.add.text(0, 20, subTitleText, {
       fontFamily: 'Cinzel, serif',
       fontSize: '13px',
       letterSpacing: 3,
