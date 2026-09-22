@@ -11,15 +11,26 @@ export const EnemyState = {
 
 export default class Enemy extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y) {
-    super(scene, x, y, 'enemy_hollow_knight');
+    super(scene, x, y, 'player_knight');
 
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
-    // Physics body
-    this.body.setSize(22, 18);
-    this.body.setOffset(13, 26);
+    // Scale for authentic pixel-art character presence
+    this.baseScale = 2.2;
+    this.setScale(this.baseScale);
+
+    // Corrupted dark iron tint with blood-crimson undertones
+    this.baseTint = 0xd05555;
+    this.setTint(this.baseTint);
+
+    // Physics body matching player pixel proportions
+    this.body.setSize(14, 12);
+    this.body.setOffset(9, 16);
     this.setCollideWorldBounds(true);
+
+    // Play default idle animation
+    this.play('player_idle');
 
     // Attributes & Stats
     this.maxHealth = 70;
@@ -139,6 +150,7 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
         Math.sin(angle) * this.patrolSpeed
       );
       this.setFlipX(Math.cos(angle) < 0);
+      this.anims.play('player_walk', true);
 
       // Walk wobble
       this.walkCycle += dt * 8;
@@ -146,6 +158,7 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     } else {
       this.body.setVelocity(0, 0);
       this.setRotation(0);
+      this.anims.play('player_idle', true);
     }
   }
 
@@ -157,6 +170,7 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.state = EnemyState.PATROL;
       this.body.setVelocity(0, 0);
       this.setRotation(0);
+      this.anims.play('player_idle', true);
       return;
     }
 
@@ -174,6 +188,7 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     );
 
     this.setFlipX(Math.cos(angle) < 0);
+    this.anims.play('player_walk', true);
 
     // Stride bobbing
     this.walkCycle += dt * 13;
@@ -187,6 +202,7 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
 
     this.body.setVelocity(0, 0);
     this.setFlipX(Math.cos(this.attackAngle) < 0);
+    this.anims.play('player_idle', true);
 
     // Red warning telegraph flash
     this.setTint(0xff3333);
@@ -194,8 +210,8 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     // Raise weapon / posture telegraph
     this.scene.tweens.add({
       targets: this,
-      scaleY: 1.15,
-      scaleX: 0.9,
+      scaleY: this.baseScale * 1.15,
+      scaleX: this.baseScale * 0.9,
       duration: this.telegraphDuration * 1000,
       ease: 'Sine.easeIn',
       yoyo: false,
@@ -219,8 +235,8 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.state = EnemyState.ATTACKING;
     this.attackTimer = this.attackDuration;
     this.hasDamagedPlayerThisAttack = false;
-    this.clearTint();
-    this.setScale(1, 1);
+    this.setTint(this.baseTint);
+    this.setScale(this.baseScale);
 
     // Forward lunge
     const lungeSpeed = 160;
@@ -276,6 +292,7 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.attackCooldownTimer = this.attackCooldown;
       this.body.setVelocity(0, 0);
       this.setRotation(0);
+      this.setScale(this.baseScale);
     }
   }
 
@@ -305,7 +322,7 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
       if (this.state !== EnemyState.DEAD) {
         this.setTint(0xff3333);
         this.scene.time.delayedCall(120, () => {
-          if (this.state !== EnemyState.DEAD) this.clearTint();
+          if (this.state !== EnemyState.DEAD) this.setTint(this.baseTint);
         });
       }
     });
@@ -346,7 +363,8 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
 
     if (this.staggerTimer <= 0) {
       this.state = EnemyState.CHASE;
-      this.clearTint();
+      this.setTint(this.baseTint);
+      this.setScale(this.baseScale);
       this.setRotation(0);
     }
   }
@@ -366,8 +384,8 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.scene.tweens.add({
       targets: this,
       alpha: 0,
-      scaleX: 0.6,
-      scaleY: 0.6,
+      scaleX: this.baseScale * 0.6,
+      scaleY: this.baseScale * 0.6,
       duration: 500,
       ease: 'Sine.easeOut',
       onComplete: () => {
