@@ -335,17 +335,18 @@ export default class GameScene extends Phaser.Scene {
           ly = Math.round(l.position.y * ppg * s);
           const hexClean = (l.color && l.color.length === 8) ? l.color.substring(2) : (l.color || 'FFEBBF');
           colorHex = parseInt(hexClean, 16);
-          radius = Math.max(70, Math.round((l.range || 4) * ppg * s * 0.75));
-          intensity = 0.65;
+          // Toned down to 50% radius and intensity for soft, moody Souls lighting
+          radius = Math.max(35, Math.round((l.range || 4) * ppg * s * 0.38));
+          intensity = 0.32;
         } else {
           lx = Math.round(l.x * s);
           ly = Math.round(l.y * s);
           colorHex = parseInt(l.tintColor.replace('#', '0x'), 16);
-          radius = Math.max(70, Math.round(l.dim * 16 * s));
-          intensity = l.bright > 15 ? 0.72 : 0.52;
+          radius = Math.max(35, Math.round(l.dim * 8 * s));
+          intensity = l.bright > 15 ? 0.36 : 0.26;
         }
 
-        const pl = this.add.pointlight(lx, ly, colorHex, radius, intensity, 0.055);
+        const pl = this.add.pointlight(lx, ly, colorHex, radius, intensity, 0.06);
 
         // Subtle flame flicker
         if (idx % 3 === 0) {
