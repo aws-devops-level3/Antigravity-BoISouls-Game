@@ -16,8 +16,8 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
-    // Scale for authentic pixel-art character presence matching player and knight
-    this.baseScale = 0.36;
+    // Scale reduced by 8% (0.36 * 0.92 = 0.3312)
+    this.baseScale = 0.3312;
     this.setScale(this.baseScale);
 
     // Ethereal white spectral body
@@ -71,7 +71,7 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
 
     // Menacing red aura point light centered on its glowing red eyes
     if (scene.add.pointlight && scene.game.renderer.type === Phaser.WEBGL) {
-      this.lightSource = scene.add.pointlight(x, y - 20, 0xff0022, 115, 0.6, 0.08);
+      this.lightSource = scene.add.pointlight(x, y - 18, 0xff0022, 110, 0.6, 0.08);
     } else {
       this.lightSource = null;
     }
@@ -410,7 +410,7 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
   }
 
   showAggroAlert() {
-    const alert = this.scene.add.text(this.x, this.y - 46, '!', {
+    const alert = this.scene.add.text(this.x, this.y - 42, '!', {
       fontFamily: 'Cinzel, serif',
       fontSize: '22px',
       fontStyle: 'bold',
@@ -421,7 +421,7 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
 
     this.scene.tweens.add({
       targets: alert,
-      y: this.y - 58,
+      y: this.y - 54,
       alpha: 0,
       duration: 600,
       ease: 'Cubic.easeOut',
@@ -431,10 +431,10 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
 
   drawHPBar() {
     this.hpBarGraphics.clear();
-    const barWidth = 32;
+    const barWidth = 30;
     const barHeight = 4;
     const bx = this.x - barWidth / 2;
-    const by = this.y - 42;
+    const by = this.y - 39;
 
     this.hpBarGraphics.fillStyle(0x000000, 0.8);
     this.hpBarGraphics.fillRect(bx - 1, by - 1, barWidth + 2, barHeight + 2);
@@ -447,7 +447,7 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
   updateLight() {
     if (this.lightSource) {
       this.lightSource.x = this.x;
-      this.lightSource.y = this.y - 20;
+      this.lightSource.y = this.y - 18;
     }
   }
 
