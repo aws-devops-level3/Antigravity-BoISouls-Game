@@ -16,21 +16,18 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
-    // Scale for authentic pixel-art character presence
-    this.baseScale = 2.2;
+    // Scale for authentic pixel-art character presence matching the player
+    this.baseScale = 0.72;
     this.setScale(this.baseScale);
 
-    // Authentic darker grey steel armor and red scarf with clear natural tint
+    // Clear tint so the dark grey steel armor and vibrant red scarf render in authentic pixel art
     this.baseTint = 0xffffff;
     this.clearTint();
 
-    // Physics body matching knight pixel proportions
-    this.body.setSize(14, 14);
-    this.body.setOffset(9, 16);
+    // Physics body matching knight sprite proportions
+    this.body.setSize(30, 22);
+    this.body.setOffset(26, 82);
     this.setCollideWorldBounds(true);
-
-    // Play default idle animation
-    this.play('knight_idle');
 
     // Attributes & Stats
     this.maxHealth = 70;
@@ -77,13 +74,6 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     } else {
       this.lightSource = null;
     }
-
-    // Bloody Sword equipped in right hand (held upright as in reference image)
-    this.sword = scene.add.sprite(x, y, 'greatsword_bloody');
-    this.sword.setOrigin(0.5, 0.78); // Pivot directly at the grip
-    this.swordScale = 2.0;
-    this.sword.setScale(this.swordScale);
-    this.sword.setDepth(this.depth + 1);
   }
 
   update(time, delta, player) {
@@ -103,7 +93,6 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     }
 
     this.updateLight();
-    this.updateSword(dt);
 
     // AI State Machine
     switch (this.state) {
@@ -158,15 +147,18 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
         Math.sin(angle) * this.patrolSpeed
       );
       this.setFlipX(Math.cos(angle) < 0);
-      this.anims.play('knight_walk', true);
 
-      // Walk wobble
-      this.walkCycle += dt * 8;
-      this.setRotation(Math.cos(this.walkCycle) * 0.05);
+      // Walk wobble & stride bobbing
+      this.walkCycle += dt * 9;
+      const bob = Math.abs(Math.sin(this.walkCycle)) * 0.035;
+      const tilt = Math.cos(this.walkCycle) * 0.04;
+      this.setScale(this.baseScale * (1 - bob * 0.5), this.baseScale * (1 + bob));
+      this.setRotation(tilt);
     } else {
       this.body.setVelocity(0, 0);
       this.setRotation(0);
-      this.anims.play('knight_idle', true);
+      this.setScale(this.baseScale, this.baseScale);
+      this.walkCycle = 0;
     }
   }
 
@@ -178,7 +170,8 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.state = EnemyState.PATROL;
       this.body.setVelocity(0, 0);
       this.setRotation(0);
-      this.anims.play('knight_idle', true);
+      this.setScale(this.baseScale, this.baseScale);
+      this.walkCycle = 0;
       return;
     }
 
@@ -196,11 +189,13 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     );
 
     this.setFlipX(Math.cos(angle) < 0);
-    this.anims.play('knight_walk', true);
 
     // Stride bobbing
     this.walkCycle += dt * 13;
-    this.setRotation(Math.cos(this.walkCycle) * 0.07);
+    const bob = Math.abs(Math.sin(this.walkCycle)) * 0.04;
+    const tilt = Math.cos(this.walkCycle) * 0.06;
+    this.setScale(this.baseScale * (1 - bob * 0.5), this.baseScale * (1 + bob));
+    this.setRotation(tilt);
   }
 
   startTelegraph(player) {
@@ -210,7 +205,6 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
 
     this.body.setVelocity(0, 0);
     this.setFlipX(Math.cos(this.attackAngle) < 0);
-    this.anims.play('knight_idle', true);
 
     // Red warning telegraph flash
     this.setTint(0xff3333);
@@ -389,20 +383,6 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     }
 
     // Death fade & soul particles
-    if (this.sword) {
-      this.scene.tweens.add({
-        targets: this.sword,
-        alpha: 0,
-        scaleX: this.sword.scaleX * 0.7,
-        scaleY: this.sword.scaleY * 0.7,
-        duration: 450,
-        ease: 'Sine.easeOut',
-        onComplete: () => {
-          if (this.sword) this.sword.destroy();
-        },
-      });
-    }
-
     this.scene.tweens.add({
       targets: this,
       alpha: 0,
@@ -476,64 +456,7 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
-  updateSword(dt) {
-    if (!this.sword || this.state === EnemyState.DEAD) return;
-
-    const isFacingLeft = this.flipX;
-    const sign = isFacingLeft ? -1 : 1;
-
-    if (this.state === EnemyState.TELEGRAPH) {
-      // Phase 1: High Overhead Windup
-      const progress = 1 - Math.max(0, this.telegraphTimer / this.telegraphDuration);
-      const handX = this.x + (isFacingLeft ? 8 : -8);
-      const handY = this.y - 8;
-      this.sword.setPosition(handX, handY);
-      
-      const windupAngle = this.attackAngle - (sign * 1.7);
-      const curAim = Phaser.Math.Linear(0, windupAngle, progress);
-      this.sword.setRotation(curAim);
-      this.sword.setScale(isFacingLeft ? -this.swordScale : this.swordScale, this.swordScale);
-      this.sword.setDepth(this.depth + 1);
-    } else if (this.state === EnemyState.ATTACKING) {
-      // Phase 2: Heavy Downward Cleave
-      const progress = 1 - Math.max(0, this.attackTimer / this.attackDuration);
-      const windupAngle = this.attackAngle - (sign * 1.7);
-      const followThrough = this.attackAngle + (sign * 0.45);
-      const curAim = Phaser.Math.Linear(windupAngle, followThrough, Math.pow(progress, 1.8));
-
-      const lungeDist = 14 * Math.sin(progress * Math.PI);
-      const handX = this.x + Math.cos(this.attackAngle) * lungeDist;
-      const handY = this.y + Math.sin(this.attackAngle) * lungeDist;
-      this.sword.setPosition(handX, handY);
-      this.sword.setRotation(curAim);
-      this.sword.setScale(isFacingLeft ? -this.swordScale : this.swordScale, this.swordScale);
-      this.sword.setDepth(this.depth + 2);
-    } else if (this.state === EnemyState.STAGGER) {
-      // Recoil stance
-      const handX = this.x + (isFacingLeft ? 14 : -14);
-      const handY = this.y + 4;
-      this.sword.setPosition(handX, handY);
-      this.sword.setRotation(isFacingLeft ? 0.6 : -0.6);
-      this.sword.setScale(isFacingLeft ? -this.swordScale : this.swordScale, this.swordScale);
-      this.sword.setDepth(this.depth + 1);
-    } else {
-      // Neutral, Patrol and Chase: Held UPRIGHT in right hand (viewer's left) exactly as in reference image!
-      const handOffsetX = isFacingLeft ? 20 : -20;
-      const handOffsetY = 2;
-      this.sword.setPosition(this.x + handOffsetX, this.y + handOffsetY);
-
-      // Sword stands straight vertically with subtle footstep sway
-      const walkSway = Math.sin(this.walkCycle) * 0.04;
-      this.sword.setRotation(walkSway);
-      this.sword.setScale(isFacingLeft ? -this.swordScale : this.swordScale, this.swordScale);
-      this.sword.setDepth(this.depth + 1);
-    }
-  }
-
   destroy(fromScene) {
-    if (this.sword) {
-      this.sword.destroy();
-    }
     if (this.lightSource) {
       this.lightSource.destroy();
     }

@@ -19,10 +19,7 @@ export default class BootScene extends Phaser.Scene {
       frameHeight: 32,
     });
     this.load.image('greatsword_bloody', '/assets/greatsword_bloody.png');
-    this.load.spritesheet('knight_enemy', '/assets/knight_enemy_sheet.png', {
-      frameWidth: 32,
-      frameHeight: 32,
-    });
+    this.load.image('knight_enemy', '/assets/knight_enemy.png');
   }
 
   create() {
@@ -44,24 +41,6 @@ export default class BootScene extends Phaser.Scene {
     }
     if (this.textures.exists('knight_enemy')) {
       this.textures.get('knight_enemy').setFilter(Phaser.Textures.FilterMode.NEAREST);
-    }
-
-    // Knight enemy animations (modeled on reference image)
-    if (!this.anims.exists('knight_idle')) {
-      this.anims.create({
-        key: 'knight_idle',
-        frames: [{ key: 'knight_enemy', frame: 0 }],
-        frameRate: 1,
-        repeat: -1,
-      });
-    }
-    if (!this.anims.exists('knight_walk')) {
-      this.anims.create({
-        key: 'knight_walk',
-        frames: this.anims.generateFrameNumbers('knight_enemy', { start: 0, end: 3 }),
-        frameRate: 7,
-        repeat: -1,
-      });
     }
 
     // Ghost floating animations
