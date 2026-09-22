@@ -16,6 +16,8 @@ export default class BootScene extends Phaser.Scene {
     this.createDustTexture();
     this.createLightTexture();
     this.createSlashTexture();
+    this.createEnemyKnightTexture();
+    this.createEnemySlashTexture();
 
     this.scene.start('GameScene');
   }
@@ -359,6 +361,132 @@ export default class BootScene extends Phaser.Scene {
     ctx.shadowBlur = 0;
     ctx.beginPath();
     ctx.arc(ox, oy, rOuter - 9, startAngle * 0.8, endAngle * 0.8);
+    ctx.stroke();
+
+    canvas.refresh();
+  }
+
+  // Hollow Knight / Cursed Wanderer Enemy Texture (48x48)
+  createEnemyKnightTexture() {
+    const canvas = this.textures.createCanvas('enemy_hollow_knight', 48, 48);
+    const ctx = canvas.getContext();
+
+    // Dark shadow underneath enemy
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.beginPath();
+    ctx.ellipse(24, 40, 15, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Slit ragged crimson / cursed cape
+    ctx.fillStyle = '#3b0b12';
+    ctx.beginPath();
+    ctx.moveTo(15, 18);
+    ctx.lineTo(33, 18);
+    ctx.lineTo(37, 43);
+    ctx.lineTo(24, 39);
+    ctx.lineTo(11, 43);
+    ctx.closePath();
+    ctx.fill();
+
+    // Rusted dark iron greaves (legs)
+    ctx.fillStyle = '#2a2228';
+    ctx.fillRect(17, 32, 6, 10);
+    ctx.fillRect(25, 32, 6, 10);
+
+    // Spiked heavy sabatons (feet)
+    ctx.fillStyle = '#1c151b';
+    ctx.fillRect(16, 40, 7, 3);
+    ctx.fillRect(25, 40, 7, 3);
+
+    // Blackened plate armor with bloodstains
+    const armorGrad = ctx.createLinearGradient(16, 18, 32, 32);
+    armorGrad.addColorStop(0, '#423640');
+    armorGrad.addColorStop(0.5, '#2c222a');
+    armorGrad.addColorStop(1, '#1a1318');
+    ctx.fillStyle = armorGrad;
+    ctx.fillRect(15, 18, 18, 14);
+
+    // Jagged pauldrons (heavy spiked shoulder guards)
+    ctx.fillStyle = '#3a2d36';
+    ctx.beginPath();
+    ctx.arc(13, 20, 6, 0, Math.PI * 2);
+    ctx.arc(35, 20, 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Rusted Broadsword
+    ctx.fillStyle = '#161317';
+    ctx.fillRect(33, 6, 4, 30); // Blade
+    ctx.fillStyle = '#991b1b'; // Crimson cursed blood rune down fuller
+    ctx.fillRect(34.5, 8, 1, 26);
+    ctx.fillStyle = '#5c4533'; // Rusted crossguard
+    ctx.fillRect(30, 24, 10, 2.5);
+    ctx.fillStyle = '#222'; // Grip
+    ctx.fillRect(34, 26.5, 2, 7);
+
+    // Horned Skull / Executioner Helm
+    ctx.fillStyle = '#332731';
+    ctx.beginPath();
+    ctx.arc(24, 13, 8.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Horns / crest spikes
+    ctx.fillStyle = '#4a3847';
+    ctx.beginPath();
+    ctx.moveTo(17, 10);
+    ctx.lineTo(13, 3);
+    ctx.lineTo(19, 7);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(31, 10);
+    ctx.lineTo(35, 3);
+    ctx.lineTo(29, 7);
+    ctx.fill();
+
+    // Menacing glowing crimson red eyes (Souls hollow fury)
+    ctx.fillStyle = '#ff1a1a';
+    ctx.shadowColor = '#ff0000';
+    ctx.shadowBlur = 8;
+    ctx.fillRect(20, 12, 3, 2);
+    ctx.fillRect(25, 12, 3, 2);
+    ctx.fillStyle = '#ffcccc';
+    ctx.fillRect(21, 12.5, 1.5, 1);
+    ctx.fillRect(26, 12.5, 1.5, 1);
+    ctx.shadowBlur = 0;
+
+    canvas.refresh();
+  }
+
+  // Enemy Crimson Cleave Slash Arc Texture (80x80)
+  createEnemySlashTexture() {
+    const canvas = this.textures.createCanvas('enemy_slash_arc', 80, 80);
+    const ctx = canvas.getContext();
+
+    const ox = 16;
+    const oy = 40;
+    const rOuter = 58;
+    const rInner = 20;
+    const startAngle = -Math.PI * 0.32;
+    const endAngle = Math.PI * 0.32;
+
+    const grad = ctx.createRadialGradient(ox, oy, rInner, ox, oy, rOuter);
+    grad.addColorStop(0, 'rgba(255, 30, 30, 0.05)');
+    grad.addColorStop(0.5, 'rgba(180, 20, 20, 0.55)');
+    grad.addColorStop(0.85, 'rgba(255, 50, 50, 0.85)');
+    grad.addColorStop(1, 'rgba(255, 120, 120, 0.95)');
+
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(ox, oy, rOuter, startAngle, endAngle, false);
+    ctx.arc(ox, oy, rInner, endAngle, startAngle, true);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = '#ff3333';
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = '#ff0000';
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.arc(ox, oy, rOuter - 1, startAngle, endAngle);
     ctx.stroke();
 
     canvas.refresh();

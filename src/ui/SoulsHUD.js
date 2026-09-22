@@ -109,6 +109,11 @@ export default class SoulsHUD {
     const staMaxW = 210;
     const staRatio = Phaser.Math.Clamp(player.stamina / player.maxStamina, 0, 1);
     this.drawSoulsBar(startX, startY + 31, staMaxW, 10, staRatio, 0x15803d, 0x22c55e);
+
+    // Update Souls Text dynamically
+    if (player.souls !== undefined) {
+      this.soulText.setText(player.souls.toLocaleString());
+    }
   }
 
   drawSoulsBar(x, y, maxWidth, height, ratio, darkColor, lightColor) {

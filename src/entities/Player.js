@@ -24,6 +24,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.health = 100;
     this.maxStamina = 100;
     this.stamina = 100;
+    this.souls = 2450;
     this.staminaRegenRate = 25; // per second
     this.staminaSprintCost = 18; // per second
     this.rollStaminaCost = Math.round(this.maxStamina * 0.15); // 15% stamina cost (15 points)
@@ -48,6 +49,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.attackRange = 68; // Cone reach in pixels
     this.attackArc = Phaser.Math.DegToRad(100); // 100-degree sweep cone
     this.attackCooldownTimer = 0;
+    this.currentSwingId = 0;
 
     // Movement direction vector
     this.moveVector = new Phaser.Math.Vector2(0, 0);
@@ -291,6 +293,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.isAttacking = true;
     this.attackTimer = 0;
     this.isSprinting = false;
+    this.currentSwingId++;
 
     // Deduct stamina and pause regen
     this.stamina = Math.max(0, this.stamina - this.attackStaminaCost);
@@ -413,6 +416,39 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     const targetAngle = Phaser.Math.Angle.Between(this.x, this.y, targetX, targetY);
     let diff = Phaser.Math.Angle.Wrap(targetAngle - this.attackAngle);
     return Math.abs(diff) <= this.attackArc / 2;
+  }
+
+  takeDamage(amount) {
+    if (this.isInvulnerable || this.health <= 0) {
+      return false; // Dodged via i-frames or already dead!
+    }
+
+    this.health = Math.max(0, this.health - amount);
+
+    // Red damage tint
+    this.setTint(0xff2222);
+    this.scene.time.delayedCall(160, () => {
+      if (this.health > 0) this.clearTint();
+    });
+
+    // Sparks / blood puff
+    this.scene.add.particles(this.x, this.y + 8, 'ember_spark', {
+      speed: { min: 60, max: 150 },
+      scale: { start: 1, end: 0 },
+      alpha: { start: 0.9, end: 0 },
+      lifespan: 220,
+      quantity: 6,
+      blendMode: 'ADD',
+    });
+
+    // Soulsborne camera shake on hit
+    this.scene.cameras.main.shake(160, 0.007);
+
+    return true;
+  }
+
+  addSouls(amount) {
+    this.souls += amount;
   }
 
   handleMovement(dt) {

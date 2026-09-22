@@ -40,6 +40,13 @@ Ett stämningsfullt mörkt 2D-actionrollspel i HTML5 och Phaser 3 med estetik, r
   - Sprint med <kbd>SKIFT</kbd> som förbrukar uthållighet (Stamina) och regenereras automatiskt.
   - **Dodge Roll med <kbd>SPACE</kbd>**: Rullningsanimation (360° somersault), 15% staminakostnad (15 av 100), i-frames (odödlighetsfönster), eteriska efterbilder (*ghost trail*) och dammpuff.
   - **Svärdsattack med Vänsterklick**: Riktat storsvärdshugg mot muspekarens position i en 100-graders kon, svepande glödande svärdsbåge, flygande cinders/gnistor, kraftfullt framåtkliv (*lunge*), subtilt skärmskak och 20% staminakostnad.
+- **Fiender & AI (Hollow Knights / Förbannade vandrare)**:
+  - Bepansrade fiender som patrullerar helgedomens pelargångar.
+  - Aggrosystem med synradie, varningssignal (`!`) och intensiv jakt (*Chase*).
+  - Telegraferad attack med röd varningsglöd och framåtrusande blodröd klinge-effekt.
+  - Skadesystem med knockback, vit/röd skadeblinkning, svävande hälsomätare och stagger-reaktion.
+  - Full koppling till spelarens Dodge Roll (i-frames gör att spelaren rullar oskadd igenom fiendens hugg).
+  - Dödseffekt med gyllene själar och belöning (+250 Souls) till HUD-räknaren.
 - **Gotisk spelmiljö ("Eldens Helgedom")**:
   - Detaljerat stengolv och arkitektoniska pelare med kollisionshantering.
   - Central **Bonfire** med det tvinnade svärdet och pulserande sken.
@@ -49,7 +56,7 @@ Ett stämningsfullt mörkt 2D-actionrollspel i HTML5 och Phaser 3 med estetik, r
   - Djupröd livmätare (HP).
   - Koboltblå fokusmätare (FP).
   - Viridiangrön uthållighetsmätare (Stamina).
-  - Souls-räknare och Estus Flask-indikator.
+  - Dynamisk Souls-räknare som ökar när fiender besegras, och Estus Flask-indikator.
 
 ---
 
@@ -57,7 +64,7 @@ Ett stämningsfullt mörkt 2D-actionrollspel i HTML5 och Phaser 3 med estetik, r
 
 1. ✅ **Dodge Roll (Rullning med Space)**: Rullningsanimation med i-frames, 15% staminakostnad och efterbilder (*klart!*).
 2. ✅ **Svärdsattack**: Vänsterklick för primärt svärdshugg mot muspekare i en kon, träffområdesgeometri och ljusglöd (*klart!*).
-3. **Fiender & AI**: Första fientliga riddaren/vandraren med patrull- och attackbeteende.
+3. ✅ **Fiender & AI**: Första fientliga riddaren/vandraren med patrullering, jakt, telegraferad attack, stagger och själar (*klart!*).
 4. **Ljud & Musik**: Atmosfäriskt mörkt ambientljud och svärdskling.
 
 ---

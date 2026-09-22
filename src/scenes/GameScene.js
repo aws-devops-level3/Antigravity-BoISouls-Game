@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import Player from '../entities/Player.js';
+import Enemy from '../entities/Enemy.js';
 import SoulsHUD from '../ui/SoulsHUD.js';
 
 export default class GameScene extends Phaser.Scene {
@@ -27,10 +28,16 @@ export default class GameScene extends Phaser.Scene {
     // 5. Spawn Ashen One (Player) near Bonfire
     this.player = new Player(this, worldWidth / 2, worldHeight / 2 + 100);
 
-    // 6. Physics Collisions
-    this.physics.add.collider(this.player, this.obstacles);
+    // 6. Spawn Hollow Knights (Cursed Wandering Knights)
+    this.enemies = this.add.group();
+    this.spawnEnemies(worldWidth / 2, worldHeight / 2);
 
-    // 7. Ambient Floating Embers (Cinders of the First Flame)
+    // 7. Physics Collisions
+    this.physics.add.collider(this.player, this.obstacles);
+    this.physics.add.collider(this.enemies, this.obstacles);
+    this.physics.add.collider(this.player, this.enemies);
+
+    // 8. Ambient Floating Embers (Cinders of the First Flame)
     this.createEmberWeather(worldWidth, worldHeight);
 
     // 8. Camera Settings - Smooth Soulsborne Lerp
@@ -193,12 +200,43 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
+  spawnEnemies(centerX, centerY) {
+    // Left colonnade patrol
+    const enemy1 = new Enemy(this, centerX - 180, centerY - 200);
+    this.enemies.add(enemy1);
+
+    // Right colonnade patrol
+    const enemy2 = new Enemy(this, centerX + 180, centerY - 200);
+    this.enemies.add(enemy2);
+
+    // Northern sanctuary guard
+    const enemy3 = new Enemy(this, centerX, centerY - 380);
+    this.enemies.add(enemy3);
+  }
+
   update(time, delta) {
     if (this.player) {
       this.player.update(time, delta);
-      // Sort player depth relative to pillars
       this.player.setDepth(this.player.y + 10);
-      
+
+      // Update all active enemies
+      this.enemies.getChildren().forEach(enemy => {
+        enemy.update(time, delta, this.player);
+      });
+
+      // Combat hit detection: player sword attack cone hitting enemies
+      if (this.player.isAttacking) {
+        this.enemies.getChildren().forEach(enemy => {
+          if (enemy.state !== 'DEAD' && enemy.lastHitSwingId !== this.player.currentSwingId) {
+            if (this.player.isPointInAttackCone(enemy.x, enemy.y)) {
+              enemy.lastHitSwingId = this.player.currentSwingId;
+              const swordDamage = 35; // 2 solid greatsword hits to fell a knight
+              enemy.takeDamage(swordDamage, this.player.x, this.player.y);
+            }
+          }
+        });
+      }
+
       if (this.hud) {
         this.hud.update(this.player);
       }
