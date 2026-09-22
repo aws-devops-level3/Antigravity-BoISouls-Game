@@ -13,6 +13,7 @@ export default class BootScene extends Phaser.Scene {
       frameHeight: 32,
     });
     this.load.image('hammer', '/assets/hammer.png');
+    this.load.image('reach_arc', '/assets/reach_arc.png');
   }
 
   create() {
@@ -22,6 +23,9 @@ export default class BootScene extends Phaser.Scene {
     }
     if (this.textures.exists('hammer')) {
       this.textures.get('hammer').setFilter(Phaser.Textures.FilterMode.NEAREST);
+    }
+    if (this.textures.exists('reach_arc')) {
+      this.textures.get('reach_arc').setFilter(Phaser.Textures.FilterMode.NEAREST);
     }
 
     // Player character animations

@@ -43,9 +43,9 @@ Ett stämningsfullt mörkt 2D-actionrollspel i HTML5 och Phaser 3 med estetik, r
     - Spelaren är nu beväpnad med en kolossal krigshammare i höger hand, skalad till $2.8\times$ så att den är **något större än karaktären själv**.
     - **Stridsredo hållning & Gånggungning**: Hammaren vilar lutad snett uppåt/framåt i höger hand vid vila och gungar subtilt i takt med stegen vid gång och sprint.
     - **Tung Överhandskross (<kbd>Vänsterklick</kbd>)**:
-      1. **Upplyft**: Hammaren lyfts högt över huvudet för att bygga kraft.
+      1. **Upplyft & Räckviddsindikator**: Hammaren lyfts högt över huvudet samtidigt som en lysande vit pixel art-skärelefant (`reach_arc`, inspirerad av referensbilden) sveper fram och visar slagets exakta maximala räckviddsradie (ca 78-80 px).
       2. **Krossving**: Accelererar nedåt i en våldsam båge mot muspekaren.
-      3. **Markkross & Chockvåg**: Slår ned i stengolvet med full kraft och utlöser en cirkulär stensprick-chockvåg (`hammer_shockwave`), flygande stenrester, cinders och tung skärmskakning.
+      3. **Markkross & Chockvåg**: Slår ned i stengolvet med full kraft och utlöser en cirkulär stensprick-chockvåg (`hammer_shockwave`), flygande stenrester och cinders (utan skärmskakning för stabil sikt).
       4. **Ökad Krosskada**: Delar ut 45 krosskada (stagger) mot Hollow Knights och Cursed Wraiths.
   - **Dodge Roll med <kbd>SPACE</kbd>**: Rullningsanimation (360° somersault), 15% staminakostnad, i-frames (odödlighetsfönster), eteriska efterbilder (*ghost trail*) av både riddaren och hammaren samt dammpuff.
 - **Fiender & AI (Hollow Knights & Cursed Wraiths)**:

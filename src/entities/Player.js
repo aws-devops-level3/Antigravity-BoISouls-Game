@@ -360,8 +360,37 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       Math.sin(this.attackAngle) * lungeSpeed
     );
 
+    // Visual strike reach indicator (crescent arc showing exact attack perimeter)
+    this.spawnReachIndicator(this.attackAngle);
+
     // Dust at feet from forceful footwork
     this.dustEmitter.emitParticleAt(this.x, this.y + 16, 3);
+  }
+
+  spawnReachIndicator(angle) {
+    const isFacingLeft = Math.cos(angle) < 0;
+    const arc = this.scene.add.sprite(this.x, this.y, 'reach_arc');
+    arc.setOrigin(0.5, 0.5);
+    arc.setRotation(angle);
+
+    // Scale reach arc to perfectly match attackRange (78-80 px)
+    const reachScale = 1.15;
+    arc.setScale(reachScale, isFacingLeft ? -reachScale : reachScale);
+    arc.setAlpha(0.95);
+    arc.setDepth(this.depth + 1);
+
+    // Dynamic sweeping flare and smooth fade
+    this.scene.tweens.add({
+      targets: arc,
+      alpha: 0,
+      scaleX: reachScale * 1.08,
+      scaleY: (isFacingLeft ? -reachScale : reachScale) * 1.08,
+      duration: 320,
+      ease: 'Cubic.easeOut',
+      onComplete: () => {
+        arc.destroy();
+      },
+    });
   }
 
   triggerHammerImpact() {
@@ -405,9 +434,6 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       spark.setDepth(this.depth + 3);
       this.scene.time.delayedCall(280, () => spark.destroy());
     }
-
-    // Heavy Soulsborne ground slam screen shake
-    this.scene.cameras.main.shake(120, 0.0055);
   }
 
   updateAttack(dt) {
