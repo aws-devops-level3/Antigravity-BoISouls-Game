@@ -95,6 +95,7 @@ export default class BootScene extends Phaser.Scene {
     // (createKnightTexture is replaced by the authentic pixel art spritesheet)
     this.createBonfireTexture();
     this.createEmberTexture();
+    this.createFlameParticleTexture();
     this.createDustTexture();
     this.createLightTexture();
     this.createSlashTexture();
@@ -366,6 +367,26 @@ export default class BootScene extends Phaser.Scene {
     ctx.fillStyle = grad;
     ctx.beginPath();
     ctx.arc(4, 4, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    canvas.refresh();
+  }
+
+  // Flame Particle (Soft glowing teardrop flame spark for animated fire, torches, and hearths)
+  createFlameParticleTexture() {
+    const canvas = this.textures.createCanvas('flame_particle', 16, 16);
+    const ctx = canvas.getContext();
+
+    // Pure incandescent white glowing core with smooth alpha falloff so dynamic tints shine brightly
+    const grad = ctx.createRadialGradient(8, 8, 1, 8, 8, 7);
+    grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+    grad.addColorStop(0.35, 'rgba(255, 255, 255, 0.85)');
+    grad.addColorStop(0.65, 'rgba(255, 255, 255, 0.35)');
+    grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(8, 8, 7, 0, Math.PI * 2);
     ctx.fill();
 
     canvas.refresh();

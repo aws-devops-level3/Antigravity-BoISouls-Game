@@ -320,6 +320,37 @@ export default class GameScene extends Phaser.Scene {
     return rect;
   }
 
+  createFireParticles(x, y, isLarge = false) {
+    // 1. Animated fire flame particles: yellow, orange, and red; drifting slowly upward; fading out
+    const flameEmitter = this.add.particles(x, y, 'flame_particle', {
+      speedY: { min: isLarge ? -22 : -16, max: isLarge ? -10 : -6 },
+      speedX: { min: isLarge ? -5 : -3, max: isLarge ? 5 : 3 },
+      scale: { start: isLarge ? 0.58 : 0.38, end: 0.08 },
+      alpha: { start: 0.85, end: 0 },
+      tint: [0xffffff, 0xfffa65, 0xffbe76, 0xf0932b, 0xff793f, 0xeb4d4b],
+      lifespan: { min: 320, max: isLarge ? 620 : 480 },
+      frequency: isLarge ? 80 : 170,
+      blendMode: 'ADD',
+    });
+    flameEmitter.setDepth(5);
+
+    // 2. For larger hearths and bonfires, add floating cinder sparks rising from the coals
+    if (isLarge) {
+      const emberEmitter = this.add.particles(x, y, 'ember_spark', {
+        speedY: { min: -28, max: -12 },
+        speedX: { min: -7, max: 7 },
+        scale: { start: 0.45, end: 0.08 },
+        alpha: { start: 0.7, end: 0 },
+        lifespan: { min: 450, max: 800 },
+        frequency: 110,
+        blendMode: 'ADD',
+      });
+      emberEmitter.setDepth(5);
+    }
+
+    return flameEmitter;
+  }
+
   createLighting() {
     if (this.floor === 1) {
       const s = this.mapScale;
@@ -349,76 +380,49 @@ export default class GameScene extends Phaser.Scene {
         }
       });
 
-      // 1. Soft, transparent radial gradient lights on the floor (behind characters & fire)
+      // Render lights and animated fire particles across all fire sources
       clusteredLights.forEach((l) => {
         const lx = Math.round(l.x * s);
         const ly = Math.round(l.y * s);
 
-        // Radius reduced dramatically to max 1/3 of previous size (~12 to 18px radius => 24 to 36px diameter)
-        const radius = Math.max(12, Math.round(l.range * ppg * s * 0.11));
-        const diameter = radius * 2;
+        const isFountain = (typeof l.color === 'string' && l.color.toLowerCase().includes('bff4ff')) || Math.hypot(l.x - 4528, l.y - 3217) < 60;
 
-        const glow = this.add.image(lx, ly, 'soft_light_glow');
-        glow.setDisplaySize(diameter, diameter);
-        glow.setAlpha(0.15); // Transparent subtle glow (between 0.1 and 0.2)
-        glow.setDepth(1); // BEHIND fire (depth 5) and characters (depth 10+)
-        glow.setBlendMode(Phaser.BlendModes.ADD);
+        if (isFountain) {
+          // Cyan Water Fountain Glow in Grand Checkered Hall (subtle, transparent radial glow)
+          const fountainGlow = this.add.image(lx, ly, 'soft_cyan_glow');
+          fountainGlow.setDisplaySize(48, 48);
+          fountainGlow.setAlpha(0.15);
+          fountainGlow.setDepth(1);
+          fountainGlow.setBlendMode(Phaser.BlendModes.ADD);
+        } else {
+          // 1. Soft, transparent radial gradient light on the floor (behind characters & fire)
+          const radius = Math.max(12, Math.round(l.range * ppg * s * 0.11));
+          const diameter = radius * 2;
+
+          const glow = this.add.image(lx, ly, 'soft_light_glow');
+          glow.setDisplaySize(diameter, diameter);
+          glow.setAlpha(0.15);
+          glow.setDepth(1); // BEHIND fire (depth 5) and characters (depth 10+)
+          glow.setBlendMode(Phaser.BlendModes.ADD);
+
+          // 2. Animated 2D Fire Particle System positioned right on top of the static fire
+          const isBonfire = Math.hypot(l.x - 1550, l.y - 2527) < 80;
+          const isFireplace = Math.hypot(l.x - 5740, l.y - 3900) < 100;
+          const isLargeFire = isBonfire || isFireplace;
+
+          this.createFireParticles(lx, ly - 2, isLargeFire);
+        }
       });
-
-      // 2. Cyan Water Fountain Glow in Grand Checkered Hall (subtle, transparent radial glow)
-      const fx = Math.round(4528 * s);
-      const fy = Math.round(3217 * s);
-      const fountainGlow = this.add.image(fx, fy, 'soft_cyan_glow');
-      fountainGlow.setDisplaySize(48, 48); // 1/3 of previous radius 75 => ~24px radius, 48px diameter
-      fountainGlow.setAlpha(0.15);
-      fountainGlow.setDepth(1);
-      fountainGlow.setBlendMode(Phaser.BlendModes.ADD);
-
-      // 3. Bonfire / Sarcophagus Hearth Embers in Crypt (1550, 2527) - depth 5 above light (depth 1)
-      const bx = Math.round(1550 * s);
-      const by = Math.round(2527 * s);
-      const cryptFire = this.add.particles(bx, by, 'ember_spark', {
-        speed: { min: 8, max: 20 },
-        angle: { min: 240, max: 300 },
-        scale: { start: 0.5, end: 0.1 },
-        alpha: { start: 0.6, end: 0 },
-        lifespan: { min: 400, max: 800 },
-        frequency: 110,
-        blendMode: 'ADD',
-      });
-      cryptFire.setDepth(5);
-
-      // 4. Burning Fireplace Embers in Grand Checkered Hall (5740, 3900) - depth 5 above light (depth 1)
-      const fpx = Math.round(5740 * s);
-      const fpy = Math.round(3900 * s);
-      const hallFire = this.add.particles(fpx, fpy, 'ember_spark', {
-        speed: { min: 10, max: 24 },
-        angle: { min: 230, max: 310 },
-        scale: { start: 0.5, end: 0.1 },
-        alpha: { start: 0.6, end: 0 },
-        lifespan: { min: 400, max: 700 },
-        frequency: 100,
-        blendMode: 'ADD',
-      });
-      hallFire.setDepth(5);
     } else {
-      // Room 2 (Torture Chamber) - Subtle, transparent radial glow
+      // Room 2 (Torture Chamber) - Subtle, transparent radial glow + animated fire
       const torchLight = this.add.image(305, 65, 'soft_light_glow');
       torchLight.setDisplaySize(88, 88); // 1/3 of previous 280px diameter
       torchLight.setAlpha(0.15);
       torchLight.setDepth(1);
       torchLight.setBlendMode(Phaser.BlendModes.ADD);
 
-      const torchFire = this.add.particles(305, 65, 'ember_spark', {
-        speed: { min: 10, max: 25 },
-        angle: { min: 240, max: 300 },
-        scale: { start: 0.5, end: 0.1 },
-        alpha: { start: 0.6, end: 0 },
-        lifespan: 600,
-        frequency: 120,
-        blendMode: 'ADD',
-      });
-      torchFire.setDepth(5);
+      // Animated fire on the wall torch
+      this.createFireParticles(305, 63, true);
 
       // Ambient Candlelight on the Dining Table (1435, 1290)
       const tableLight = this.add.image(1435, 1290, 'soft_light_glow');
@@ -426,6 +430,9 @@ export default class GameScene extends Phaser.Scene {
       tableLight.setAlpha(0.15);
       tableLight.setDepth(1);
       tableLight.setBlendMode(Phaser.BlendModes.ADD);
+
+      // Animated fire on the dining table candles
+      this.createFireParticles(1435, 1288, false);
     }
   }
 
