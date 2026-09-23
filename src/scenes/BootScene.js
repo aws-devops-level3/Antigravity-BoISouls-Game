@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { LEVELS } from '../data/LevelTransitions.js';
 
 export default class BootScene extends Phaser.Scene {
   constructor() {
@@ -21,9 +22,16 @@ export default class BootScene extends Phaser.Scene {
     this.load.image('greatsword_bloody', '/assets/greatsword_bloody.png');
     this.load.image('knight_enemy', '/assets/knight_enemy.png');
     this.load.image('ghost_enemy', '/assets/ghost_enemy.png');
-    this.load.image('SoulsLevel1', '/assets/SoulsLevel1.png');
-    this.load.image('dungeon_level1', '/assets/SoulsLevel1.png');
-    this.load.json('SoulsChapel_vtt', '/assets/SoulsChapel.dd2vtt');
+    // Dynamically preload all registered levels and their .dd2vtt data
+    Object.values(LEVELS).forEach(lvl => {
+      if (lvl.vttPath) {
+        this.load.json(`${lvl.key}_vtt`, lvl.vttPath);
+      }
+      if (lvl.imagePath) {
+        this.load.image(`${lvl.key}_bg`, lvl.imagePath);
+      }
+    });
+
     this.load.json('level1_data', '/assets/SoulsLevel1.json');
   }
 
@@ -105,6 +113,7 @@ export default class BootScene extends Phaser.Scene {
     this.createGhostTexture();
     this.createGhostClawTexture();
     this.createOpenHatchTexture();
+    this.createDoorRuneTexture();
 
     this.scene.start('GameScene');
   }
@@ -867,6 +876,42 @@ export default class BootScene extends Phaser.Scene {
       ctx.lineTo(48 + Math.cos(rad - 0.12) * endR, 48 + Math.sin(rad - 0.12) * endR);
       ctx.stroke();
     });
+
+    canvas.refresh();
+  }
+
+  // Golden ethereal doorway sigil
+  createDoorRuneTexture() {
+    const canvas = this.textures.createCanvas('door_rune', 64, 64);
+    const ctx = canvas.getContext();
+
+    // Soft outer golden halo
+    const grad = ctx.createRadialGradient(32, 32, 4, 32, 32, 30);
+    grad.addColorStop(0, 'rgba(255, 220, 120, 0.85)');
+    grad.addColorStop(0.5, 'rgba(212, 175, 55, 0.45)');
+    grad.addColorStop(0.85, 'rgba(180, 120, 30, 0.15)');
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(32, 32, 30, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Inner glowing ring
+    ctx.strokeStyle = '#fff0b8';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(32, 32, 14, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Sacred door cross / chevron glyph
+    ctx.strokeStyle = '#ffe082';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(32, 12);
+    ctx.lineTo(32, 52);
+    ctx.moveTo(18, 32);
+    ctx.lineTo(46, 32);
+    ctx.stroke();
 
     canvas.refresh();
   }

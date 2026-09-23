@@ -4,6 +4,8 @@ import Enemy from '../entities/Enemy.js';
 import GhostEnemy from '../entities/GhostEnemy.js';
 import SoulsHUD from '../ui/SoulsHUD.js';
 import level1Data from '../data/SoulsLevel1.json';
+import DD2VTTParser from '../utils/DD2VTTParser.js';
+import { getMapConfig, MAP_CONFIGS } from '../data/MapConfig.js';
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
@@ -11,85 +13,256 @@ export default class GameScene extends Phaser.Scene {
   }
 
   init(data) {
-    this.floor = data && data.floor ? data.floor : 1;
-    this.initialSouls = data && data.souls !== undefined ? data.souls : 2450;
-    this.initialHealth = data && data.health !== undefined ? data.health : 100;
+    this.currentMapKey = (data && data.mapKey) ? data.mapKey : 'SoulsChapel';
+    this.mapConfig = getMapConfig(this.currentMapKey);
+    this.spawnOverride = (data && data.spawnX !== undefined && data.spawnY !== undefined)
+      ? { x: data.spawnX, y: data.spawnY }
+      : null;
+
+    // Retain full player stats across room / map transitions
+    this.initialSouls = (data && data.souls !== undefined) ? data.souls : 2450;
+    this.initialHealth = (data && data.health !== undefined) ? data.health : 100;
+    this.initialMaxHealth = (data && data.maxHealth !== undefined) ? data.maxHealth : 100;
+    this.initialStamina = (data && data.stamina !== undefined) ? data.stamina : 100;
+    this.initialMaxStamina = (data && data.maxStamina !== undefined) ? data.maxStamina : 100;
+
+    this.floor = data && data.floor ? data.floor : (this.currentMapKey === 'SoulsChapel' ? 1 : 2);
   }
 
   create() {
-    // Dynamic world bounds:
-    // Floor 1: SoulsLevel1 scaled (mapScale: 0.42) so an entire room is visible on screen (~900-1000px per room)
-    // Floor 2: Torture Chamber Crypt (2048 x 1536)
     const mapScale = 0.42;
     this.mapScale = mapScale;
-    const worldWidth = this.floor === 1 ? Math.round(6750 * mapScale) : 2048; // 2835 x 2016
-    const worldHeight = this.floor === 1 ? Math.round(4800 * mapScale) : 1536;
+
+    // Parse active map's Universal VTT (.dd2vtt) data
+    const vttData = this.cache.json.get(this.mapConfig.vttKey) || this.cache.json.get('SoulsChapel_vtt');
+    this.vttParser = vttData ? new DD2VTTParser(vttData, mapScale) : null;
+
+    const worldWidth = this.vttParser
+      ? this.vttParser.worldWidth
+      : (this.floor === 1 ? Math.round(6750 * mapScale) : 2048);
+    const worldHeight = this.vttParser
+      ? this.vttParser.worldHeight
+      : (this.floor === 1 ? Math.round(4800 * mapScale) : 1536);
+
     this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
 
     // State flags for hatch and room progression
     this.hatchUnlocked = false;
     this.isTransitioning = false;
 
-    // 1. Render Background based on active floor
-    if (this.floor === 1) {
-      const bg = this.add.image(0, 0, 'SoulsLevel1').setOrigin(0, 0);
-      bg.setDisplaySize(worldWidth, worldHeight);
-      bg.setDepth(0);
-    } else {
-      const bg2 = this.add.image(worldWidth / 2, worldHeight / 2, 'dungeon_bg_room2').setOrigin(0.5, 0.5);
-      bg2.setDepth(0);
+    // 1. Render Background based on active map
+    let bgKey = 'SoulsChapel_bg';
+    if (this.mapConfig && this.textures.exists(this.mapConfig.bgKey)) {
+      bgKey = this.mapConfig.bgKey;
+    } else if (this.textures.exists('SoulsLevel1')) {
+      bgKey = 'SoulsLevel1';
     }
+    const bg = this.add.image(0, 0, bgKey).setOrigin(0, 0);
+    bg.setDisplaySize(worldWidth, worldHeight);
+    bg.setDepth(0);
 
     // 2. Setup Collision Groups
     this.obstacles = this.physics.add.staticGroup();
 
-    // 3. Build Collision Boundaries matching the active floor's props
+    // 3. Build Collision Boundaries matching the active floor & DD2VTT walls
     this.buildObstacles(worldWidth, worldHeight);
 
-    // 4. Dynamic Lighting for active room
+    // 4. Setup Interactive Door Triggers from DD2VTT portals
+    this.setupDoorTriggers();
+
+    // 5. Dynamic Lighting for active room
     this.createLighting();
 
-    // 5. Spawn Ashen One (Player)
-    // Floor 1: Beside the crypt bonfire / sarcophagus (~651, 1061)
-    // Floor 2: Enters from the northern door (988, 200)
-    const spawnX = this.floor === 1 ? Math.round(1550 * mapScale) : 988;
-    const spawnY = this.floor === 1 ? Math.round(2527 * mapScale) : 200;
+    // 6. Spawn Ashen One (Player) with preserved stats
+    let spawnX, spawnY;
+    if (this.spawnOverride) {
+      spawnX = this.spawnOverride.x;
+      spawnY = this.spawnOverride.y;
+    } else if (this.mapConfig && this.mapConfig.defaultSpawn) {
+      spawnX = this.mapConfig.defaultSpawn.x;
+      spawnY = this.mapConfig.defaultSpawn.y;
+    } else {
+      spawnX = this.floor === 1 ? Math.round(1550 * mapScale) : 988;
+      spawnY = this.floor === 1 ? Math.round(2527 * mapScale) : 200;
+    }
+
     this.player = new Player(this, spawnX, spawnY);
     this.player.souls = this.initialSouls;
     this.player.health = this.initialHealth;
+    this.player.maxHealth = this.initialMaxHealth;
+    this.player.stamina = this.initialStamina;
+    this.player.maxStamina = this.initialMaxStamina;
 
-    // 6. Spawn Enemies
+    // 7. Spawn Enemies
     this.enemies = this.add.group();
     this.knights = this.add.group();
     this.spawnEnemies();
 
-    // 7. Physics Collisions
+    // 8. Physics Collisions
     this.physics.add.collider(this.player, this.obstacles);
-    this.physics.add.collider(this.knights, this.obstacles); // Knights collide with walls & props; ghosts phase through!
+    this.physics.add.collider(this.knights, this.obstacles);
     this.physics.add.collider(this.player, this.enemies);
 
-    // 8. Ambient Floating Cinders
+    // 9. Ambient Floating Cinders / Weather
     this.createEmberWeather(worldWidth, worldHeight);
 
-    // 9. Camera Settings - Smooth Soulsborne Lerp & Viewport Sizing so a whole room is visible at once
+    // 10. Camera Settings - Smooth Soulsborne Lerp
     this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
     this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
-    this.cameras.main.setZoom(this.floor === 1 ? 1.0 : 1.35);
+    this.cameras.main.setZoom(1.0);
     this.cameras.main.fadeIn(700, 0, 0, 0);
 
-    // 10. HUD System
+    // 11. HUD System
     this.hud = new SoulsHUD(this);
 
-    // 11. Atmospheric Location Title Display
-    if (this.floor === 1) {
+    // 12. Atmospheric Location Title Display
+    if (this.mapConfig) {
+      this.displayAreaTitle(this.mapConfig.areaTitle, this.mapConfig.areaSubtitle);
+    } else if (this.floor === 1) {
       this.displayAreaTitle('FÖRBANNADE SALEN', 'The Accursed Crypts & Grand Halls - Våning 1');
     } else {
       this.displayAreaTitle('TORTYRKAMMAREN', 'The Torture Chamber - Våning 2');
     }
 
+    // 13. Interaction Key (E)
+    this.keyE = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+
     // Handle Window Resize
     this.scale.on('resize', (gameSize) => {
       this.cameras.main.setSize(gameSize.width, gameSize.height);
+      if (this.doorPromptContainer) {
+        this.doorPromptContainer.setPosition(gameSize.width / 2, gameSize.height - 85);
+      }
+    });
+  }
+
+  setupDoorTriggers() {
+    this.doorTriggers = [];
+    if (!this.mapConfig || !this.mapConfig.doors || !this.vttParser) return;
+
+    const leftmostDoor = this.vttParser.getLeftmostDoor();
+
+    this.mapConfig.doors.forEach(doorCfg => {
+      let doorX = null;
+      let doorY = null;
+      let doorData = null;
+
+      if (doorCfg.position) {
+        doorX = doorCfg.position.x;
+        doorY = doorCfg.position.y;
+      } else if (doorCfg.match === 'leftmost' && leftmostDoor) {
+        doorData = leftmostDoor;
+        doorX = doorData.worldX;
+        doorY = doorData.worldY;
+      } else if (typeof doorCfg.match === 'number' && this.vttParser) {
+        doorData = this.vttParser.getDoorByIndex(doorCfg.match);
+        if (doorData) {
+          doorX = doorData.worldX;
+          doorY = doorData.worldY;
+        }
+      }
+
+      if (doorX === null || doorY === null) return;
+
+      // Ethereal doorway rune glow on the floor
+      const rune = this.add.image(doorX, doorY, 'door_rune');
+      rune.setDisplaySize(44, 44);
+      rune.setAlpha(0.65);
+      rune.setDepth(2);
+      rune.setBlendMode(Phaser.BlendModes.ADD);
+
+      // Pulsating rune glow animation
+      this.tweens.add({
+        targets: rune,
+        alpha: { from: 0.35, to: 0.9 },
+        scale: { from: 0.85, to: 1.15 },
+        duration: 1600,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+
+      // Subtle rising ember particles at the threshold
+      const doorParticles = this.add.particles(doorX, doorY, 'ember_spark', {
+        speed: { min: 10, max: 28 },
+        angle: { min: -120, max: -60 },
+        scale: { start: 0.5, end: 0.1 },
+        alpha: { start: 0.75, end: 0 },
+        tint: 0xffd700,
+        lifespan: 800,
+        frequency: 200,
+        blendMode: 'ADD',
+      });
+      doorParticles.setDepth(3);
+
+      this.doorTriggers.push({
+        x: doorX,
+        y: doorY,
+        radius: 65,
+        config: doorCfg,
+        doorData,
+        rune,
+      });
+    });
+
+    this.createDoorPromptUI();
+  }
+
+  createDoorPromptUI() {
+    const cam = this.cameras.main;
+    this.doorPromptContainer = this.add.container(cam.width / 2, cam.height - 85);
+    this.doorPromptContainer.setScrollFactor(0);
+    this.doorPromptContainer.setDepth(2000);
+    this.doorPromptContainer.setVisible(false);
+
+    // Dark parchment / iron backdrop with gold filigree border
+    const bg = this.add.graphics();
+    bg.fillStyle(0x08060a, 0.88);
+    bg.fillRoundedRect(-180, -22, 360, 44, 6);
+    bg.lineStyle(1.5, 0xc99e3a, 0.85);
+    bg.strokeRoundedRect(-180, -22, 360, 44, 6);
+
+    // Inner gold trim
+    bg.lineStyle(0.8, 0x6e5223, 0.6);
+    bg.strokeRoundedRect(-176, -18, 352, 36, 4);
+
+    this.doorPromptText = this.add.text(0, 0, '', {
+      fontFamily: 'Cinzel, serif',
+      fontSize: '15px',
+      color: '#f5efe6',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5);
+
+    this.doorPromptContainer.add([bg, this.doorPromptText]);
+  }
+
+  transitionToMap(doorConfig) {
+    if (this.isTransitioning) return;
+    this.isTransitioning = true;
+
+    if (this.doorPromptContainer) {
+      this.doorPromptContainer.setVisible(false);
+    }
+
+    if (this.player && this.player.body) {
+      this.player.body.setVelocity(0, 0);
+    }
+
+    // Camera fade to black
+    this.cameras.main.fade(800, 0, 0, 0, false, (cam, progress) => {
+      if (progress === 1) {
+        this.scene.restart({
+          mapKey: doorConfig.targetMap,
+          spawnX: doorConfig.targetSpawn.x,
+          spawnY: doorConfig.targetSpawn.y,
+          health: this.player.health,
+          maxHealth: this.player.maxHealth,
+          souls: this.player.souls,
+          stamina: this.player.stamina,
+          maxStamina: this.player.maxStamina,
+        });
+      }
     });
   }
 
@@ -100,90 +273,61 @@ export default class GameScene extends Phaser.Scene {
     this.createObstacle(8, height / 2, 16, height); // Left
     this.createObstacle(width - 8, height / 2, 16, height); // Right
 
-    if (this.floor === 1) {
-      const vttData = this.cache.json.get('SoulsChapel_vtt');
-      if (vttData) {
-        this.buildWallsFromDD2VTT(vttData, width, height);
-      } else {
-        this.buildWallsFromLegacyJSON(width, height);
-      }
+    if (this.vttParser) {
+      this.buildWallsFromDD2VTT(this.vttParser, width, height);
     } else {
-      // Room 2 (Torture Chamber) Props
-      this.createObstacle(130, 160, 190, 250); // Torture Bed with corpse (Top Left)
-      this.createObstacle(75, 615, 110, 290); // Upper Shelf (Mid-West wall)
-      this.createObstacle(75, 1010, 110, 290); // Lower Shelf (South-West wall)
-      this.createObstacle(1435, 1300, 430, 240); // Large Dining Table & Chairs (Bottom Right)
-      this.createObstacle(1835, 175, 310, 260); // Smashed Barrels, Skeleton & Rubble (Top Right)
-      this.createObstacle(1970, 775, 130, 290); // Crumbling Stone Wall (Mid-East wall)
-      this.hatchObstacle = this.createObstacle(75, 715, 100, 110);
+      this.buildWallsFromLegacyJSON(width, height);
     }
   }
 
-  buildWallsFromDD2VTT(vttData, worldWidth, worldHeight) {
-    const ppg = (vttData.resolution && vttData.resolution.pixels_per_grid) || 150;
-    const mapSizeX = (vttData.resolution && vttData.resolution.map_size && vttData.resolution.map_size.x) || 45;
-    const mapSizeY = (vttData.resolution && vttData.resolution.map_size && vttData.resolution.map_size.y) || 32;
-    const nativeWidth = mapSizeX * ppg; // 6750
-    const nativeHeight = mapSizeY * ppg; // 4800
-    const scaleX = worldWidth / nativeWidth;
-    const scaleY = worldHeight / nativeHeight;
-    const s = scaleX;
+  buildWallsFromDD2VTT(parser, worldWidth, worldHeight) {
     const wallThickness = 16;
-
     this.collisionSegments = [];
 
-    // 1. Line of Sight (Solid Structural Walls from SoulsChapel.dd2vtt)
-    if (Array.isArray(vttData.line_of_sight)) {
-      vttData.line_of_sight.forEach(seg => {
-        if (Array.isArray(seg) && seg.length >= 2) {
-          const x1 = seg[0].x * ppg * scaleX;
-          const y1 = seg[0].y * ppg * scaleY;
-          const x2 = seg[1].x * ppg * scaleX;
-          const y2 = seg[1].y * ppg * scaleY;
-          this.createSegmentObstacle(x1, y1, x2, y2, wallThickness);
-          this.collisionSegments.push({ x1, y1, x2, y2, type: 'wall' });
-        }
-      });
-    }
-
-    // 2. Portals (Exterior Windows and Outer Perimeter Doors)
-    if (Array.isArray(vttData.portals)) {
-      vttData.portals.forEach(p => {
-        // Windows (closed: false) block player movement to keep character inside chapel rooms
-        // Outer perimeter doors (x <= 600) block escape into the black void
-        // Interior doorways (portals 12, 16, 19 connecting rooms) remain open for player passage
-        const isWindow = p.closed === false;
-        const isOuterDoor = p.closed === true && p.position && (p.position.x * ppg <= 600);
-        if ((isWindow || isOuterDoor) && p.bounds && p.bounds.length >= 2) {
-          const x1 = p.bounds[0].x * ppg * scaleX;
-          const y1 = p.bounds[0].y * ppg * scaleY;
-          const x2 = p.bounds[1].x * ppg * scaleX;
-          const y2 = p.bounds[1].y * ppg * scaleY;
-          this.createSegmentObstacle(x1, y1, x2, y2, wallThickness);
-          this.collisionSegments.push({ x1, y1, x2, y2, type: isWindow ? 'window' : 'outer_door' });
-        }
-      });
-    }
-
-    // 3. Stately Stone Pillars in Grand Checkered Hall and Crypt (12 pillars)
-    const pillarPositions = [
-      { x: 3685, y: 2633 }, { x: 3685, y: 3873 },
-      { x: 4307, y: 2632 }, { x: 4357, y: 3873 },
-      { x: 5028, y: 2633 }, { x: 5028, y: 3873 },
-      { x: 5700, y: 2633 }, { x: 5700, y: 3873 },
-      { x: 710, y: 1537 }, { x: 710, y: 2947 },
-      { x: 1285, y: 1537 }, { x: 1285, y: 2947 }
-    ];
-    pillarPositions.forEach(p => {
-      this.createObstacle(Math.round(p.x * s), Math.round(p.y * s), 32, 32);
+    // 1. Line of Sight (Solid Structural Walls from .dd2vtt)
+    const walls = parser.getWalls();
+    walls.forEach(seg => {
+      this.createSegmentObstacle(seg.x1, seg.y1, seg.x2, seg.y2, wallThickness);
+      this.collisionSegments.push({ ...seg, type: 'wall' });
     });
 
-    // 4. Crypt Props: Central Sarcophagus & Altar
-    this.createObstacle(Math.round(1550 * s), Math.round(2380 * s), Math.round(140 * s), Math.round(230 * s));
-    this.createObstacle(Math.round(1550 * s), Math.round(2530 * s), Math.round(70 * s), Math.round(70 * s)); // Bonfire base
+    // 2. Windows (closed: false) block player movement
+    const windows = parser.getWindows();
+    windows.forEach(w => {
+      if (w.bounds && w.bounds.length >= 2) {
+        this.createSegmentObstacle(w.bounds[0].x, w.bounds[0].y, w.bounds[1].x, w.bounds[1].y, wallThickness);
+        this.collisionSegments.push({
+          x1: w.bounds[0].x,
+          y1: w.bounds[0].y,
+          x2: w.bounds[1].x,
+          y2: w.bounds[1].y,
+          type: 'window',
+        });
+      }
+    });
 
-    // 5. Floor 2 Transition Hatch in upper wooden lodge
-    this.hatchObstacle = this.createObstacle(Math.round(5540 * s), Math.round(1050 * s), 60, 60);
+    // 3. Stately Stone Pillars and Props for SoulsChapel
+    if (this.currentMapKey === 'SoulsChapel') {
+      const s = this.mapScale;
+      const pillarPositions = [
+        { x: 3685, y: 2633 }, { x: 3685, y: 3873 },
+        { x: 4307, y: 2632 }, { x: 4357, y: 3873 },
+        { x: 5028, y: 2633 }, { x: 5028, y: 3873 },
+        { x: 5700, y: 2633 }, { x: 5700, y: 3873 },
+        { x: 710, y: 1537 }, { x: 710, y: 2947 },
+        { x: 1285, y: 1537 }, { x: 1285, y: 2947 },
+      ];
+      pillarPositions.forEach(p => {
+        this.createObstacle(Math.round(p.x * s), Math.round(p.y * s), 32, 32);
+      });
+
+      // Crypt Props: Central Sarcophagus & Altar
+      this.createObstacle(Math.round(1550 * s), Math.round(2380 * s), Math.round(140 * s), Math.round(230 * s));
+      this.createObstacle(Math.round(1550 * s), Math.round(2530 * s), Math.round(70 * s), Math.round(70 * s));
+
+      // Floor 2 Transition Hatch in upper wooden lodge
+      this.hatchObstacle = this.createObstacle(Math.round(5540 * s), Math.round(1050 * s), 60, 60);
+    }
 
     // Setup interactive debug visualizer for collision lines (Toggle with 'C' key)
     this.setupCollisionDebugVisualizer();
@@ -321,7 +465,6 @@ export default class GameScene extends Phaser.Scene {
   }
 
   createFireParticles(x, y, isLarge = false) {
-    // 1. Animated fire flame particles: yellow, orange, and red; drifting slowly upward; fading out
     const flameEmitter = this.add.particles(x, y, 'flame_particle', {
       speedY: { min: isLarge ? -24 : -18, max: isLarge ? -10 : -8 },
       speedX: { min: isLarge ? -5 : -3, max: isLarge ? 5 : 3 },
@@ -334,7 +477,6 @@ export default class GameScene extends Phaser.Scene {
     });
     flameEmitter.setDepth(5);
 
-    // 2. For larger hearths and bonfires, add floating cinder sparks rising from the coals
     if (isLarge) {
       const emberEmitter = this.add.particles(x, y, 'ember_spark', {
         speedY: { min: -28, max: -12 },
@@ -352,149 +494,110 @@ export default class GameScene extends Phaser.Scene {
   }
 
   createLighting() {
-    if (this.floor === 1) {
-      const s = this.mapScale;
+    const s = this.mapScale;
+    const vttData = this.cache.json.get(this.mapConfig ? this.mapConfig.vttKey : 'SoulsChapel_vtt');
+    const ppg = (vttData && vttData.resolution && vttData.resolution.pixels_per_grid) || 150;
 
-      // 1. Exact, pixel-perfect lantern flame positions in the Crypt (Spawn Room)
+    if (this.currentMapKey === 'SoulsChapel') {
+      // 1. Exact lantern flame positions in Crypt (West)
       const cryptLanterns = [
-        // West wall lanterns (4)
-        { x: 233, y: 641 },
-        { x: 228, y: 838 },
-        { x: 237, y: 1038 },
-        { x: 234, y: 1227 },
-        // North wall alcove lanterns (4)
-        { x: 372, y: 571 },
-        { x: 564, y: 573 },
-        { x: 826, y: 572 },
-        { x: 1025, y: 572 },
-        // South wall alcove & doorway lanterns (4)
-        { x: 374, y: 1298 },
-        { x: 566, y: 1298 },
-        { x: 830, y: 1298 },
-        { x: 1154, y: 1298 },
+        { x: 233, y: 641 }, { x: 228, y: 838 }, { x: 237, y: 1038 }, { x: 234, y: 1227 },
+        { x: 372, y: 571 }, { x: 564, y: 573 }, { x: 826, y: 572 }, { x: 1025, y: 572 },
+        { x: 374, y: 1298 }, { x: 566, y: 1298 }, { x: 830, y: 1298 }, { x: 1154, y: 1298 },
       ];
 
       cryptLanterns.forEach((cl) => {
-        // Subtle soft radial floor glow behind lantern (depth 1, alpha 0.15)
         const glow = this.add.image(cl.x, cl.y, 'soft_light_glow');
         glow.setDisplaySize(32, 32);
         glow.setAlpha(0.15);
         glow.setDepth(1);
         glow.setBlendMode(Phaser.BlendModes.ADD);
-
-        // Lively animated fire particles placed dead-center on the lantern flame
         this.createFireParticles(cl.x, cl.y, false);
       });
 
-      // 2. Central Bonfire Hearth beside the sarcophagus in Crypt
-      const bx = Math.round(1550 * s); // 651
-      const by = Math.round(2527 * s); // 1061
+      // 2. Central Bonfire Hearth in Crypt
+      const bx = Math.round(1550 * s);
+      const by = Math.round(2527 * s);
       const bonfireGlow = this.add.image(bx, by, 'soft_light_glow');
       bonfireGlow.setDisplaySize(44, 44);
       bonfireGlow.setAlpha(0.15);
       bonfireGlow.setDepth(1);
       bonfireGlow.setBlendMode(Phaser.BlendModes.ADD);
-
       this.createFireParticles(bx, by - 2, true);
 
-      // 3. Torches, hearths, and burning book tables in the other rooms (Grand Hall, Lodge, Library)
-      const vttData = this.cache.json.get('SoulsChapel_vtt');
-      const lightsList = (vttData && Array.isArray(vttData.lights)) ? vttData.lights : level1Data.lights;
-      const ppg = (vttData && vttData.resolution && vttData.resolution.pixels_per_grid) || 150;
-
-      const otherLights = [];
-      lightsList.forEach(l => {
-        let x, y, range, color;
-        if (l.position) {
-          x = l.position.x * ppg;
-          y = l.position.y * ppg;
-          range = l.range || 4;
-          color = l.color;
-        } else {
-          x = l.x;
-          y = l.y;
-          range = (l.dim || 20) / 4;
-          color = l.tintColor;
-        }
-        // Exclude the crypt room (x * s <= 1180) as it is fully and accurately handled above
-        if (x * s > 1180) {
-          const existing = otherLights.find(c => Math.hypot(c.x - x, c.y - y) < 80);
-          if (!existing) {
-            otherLights.push({ x, y, range, color });
+      // 3. Torches & fountain in Grand Hall / Lodge
+      if (vttData && Array.isArray(vttData.lights)) {
+        vttData.lights.forEach(l => {
+          if (!l.position) return;
+          const lx = Math.round(l.position.x * ppg * s);
+          const ly = Math.round(l.position.y * ppg * s);
+          if (lx > 1180) {
+            const isFountain = Math.hypot(lx - Math.round(4528 * s), ly - Math.round(3217 * s)) < 60;
+            if (isFountain) {
+              const fountainGlow = this.add.image(lx, ly, 'soft_cyan_glow');
+              fountainGlow.setDisplaySize(48, 48);
+              fountainGlow.setAlpha(0.15);
+              fountainGlow.setDepth(1);
+              fountainGlow.setBlendMode(Phaser.BlendModes.ADD);
+            } else {
+              const glow = this.add.image(lx, ly, 'soft_light_glow');
+              glow.setDisplaySize(36, 36);
+              glow.setAlpha(0.15);
+              glow.setDepth(1);
+              glow.setBlendMode(Phaser.BlendModes.ADD);
+              this.createFireParticles(lx, ly - 2, false);
+            }
           }
-        }
-      });
-
-      otherLights.forEach((l) => {
-        const lx = Math.round(l.x * s);
-        const ly = Math.round(l.y * s);
-
-        const isFountain = (typeof l.color === 'string' && l.color.toLowerCase().includes('bff4ff')) || Math.hypot(l.x - 4528, l.y - 3217) < 60;
-
-        if (isFountain) {
-          // Cyan Water Fountain Glow
-          const fountainGlow = this.add.image(lx, ly, 'soft_cyan_glow');
-          fountainGlow.setDisplaySize(48, 48);
-          fountainGlow.setAlpha(0.15);
-          fountainGlow.setDepth(1);
-          fountainGlow.setBlendMode(Phaser.BlendModes.ADD);
-        } else {
-          // Soft floor light glow
-          const radius = Math.max(12, Math.round(l.range * ppg * s * 0.11));
-          const diameter = radius * 2;
+        });
+      }
+    } else if (this.currentMapKey === 'CemeterySouls' || this.currentMapKey === 'SoulsBossRoom1') {
+      // Dynamic lights from DD2VTT
+      if (vttData && Array.isArray(vttData.lights)) {
+        vttData.lights.forEach(l => {
+          if (!l.position) return;
+          const lx = Math.round(l.position.x * ppg * s);
+          const ly = Math.round(l.position.y * ppg * s);
           const glow = this.add.image(lx, ly, 'soft_light_glow');
-          glow.setDisplaySize(diameter, diameter);
-          glow.setAlpha(0.15);
+          glow.setDisplaySize(44, 44);
+          glow.setAlpha(0.18);
           glow.setDepth(1);
           glow.setBlendMode(Phaser.BlendModes.ADD);
-
-          // Animated fire particles
-          const isFireplace = Math.hypot(l.x - 5740, l.y - 3900) < 100;
-          this.createFireParticles(lx, ly - 2, isFireplace);
-        }
-      });
-    } else {
-      // Room 2 (Torture Chamber) - Subtle, transparent radial glow + animated fire
-      const torchLight = this.add.image(305, 65, 'soft_light_glow');
-      torchLight.setDisplaySize(88, 88); // 1/3 of previous 280px diameter
-      torchLight.setAlpha(0.15);
-      torchLight.setDepth(1);
-      torchLight.setBlendMode(Phaser.BlendModes.ADD);
-
-      // Animated fire on the wall torch
-      this.createFireParticles(305, 63, true);
-
-      // Ambient Candlelight on the Dining Table (1435, 1290)
-      const tableLight = this.add.image(1435, 1290, 'soft_light_glow');
-      tableLight.setDisplaySize(70, 70); // 1/3 of previous 220px diameter
-      tableLight.setAlpha(0.15);
-      tableLight.setDepth(1);
-      tableLight.setBlendMode(Phaser.BlendModes.ADD);
-
-      // Animated fire on the dining table candles
-      this.createFireParticles(1435, 1288, false);
+          this.createFireParticles(lx, ly - 2, false);
+        });
+      }
     }
   }
 
   spawnEnemies() {
-    if (this.floor === 1) {
-      const s = this.mapScale;
-      // Floor 1: 5 Knights, 5 Ghosts distributed across compact rooms
-      // 1. Crypt Chamber (West)
+    // If the level configuration defines an enemy roster, spawn dynamically
+    if (this.mapConfig && Array.isArray(this.mapConfig.enemies) && this.mapConfig.enemies.length > 0) {
+      this.mapConfig.enemies.forEach(e => {
+        if (e.type === 'ghost') {
+          const ghost = new GhostEnemy(this, e.x, e.y);
+          this.enemies.add(ghost);
+        } else {
+          const knight = new Enemy(this, e.x, e.y);
+          this.knights.add(knight);
+          this.enemies.add(knight);
+        }
+      });
+      return;
+    }
+
+    const s = this.mapScale;
+    if (this.currentMapKey === 'SoulsChapel') {
+      // SoulsChapel: 5 Knights, 5 Ghosts distributed across rooms
       const knight1 = new Enemy(this, Math.round(1050 * s), Math.round(2200 * s));
       const knight2 = new Enemy(this, Math.round(2100 * s), Math.round(2000 * s));
       const ghost1 = new GhostEnemy(this, Math.round(800 * s), Math.round(2700 * s));
 
-      // 2. Forest Passage & Outdoors (Mid)
       const ghost2 = new GhostEnemy(this, Math.round(3050 * s), Math.round(3100 * s));
       const ghost3 = new GhostEnemy(this, Math.round(3200 * s), Math.round(1800 * s));
 
-      // 3. Grand Checkered Hall (East)
       const knight3 = new Enemy(this, Math.round(4000 * s), Math.round(3200 * s));
       const knight4 = new Enemy(this, Math.round(5300 * s), Math.round(3200 * s));
-      const ghost4 = new GhostEnemy(this, Math.round(4528 * s), Math.round(3217 * s)); // Circling fountain
+      const ghost4 = new GhostEnemy(this, Math.round(4528 * s), Math.round(3217 * s));
 
-      // 4. Upper Wooden Lodge (North-East)
       const knight5 = new Enemy(this, Math.round(5500 * s), Math.round(1200 * s));
       const ghost5 = new GhostEnemy(this, Math.round(5850 * s), Math.round(850 * s));
 
@@ -506,21 +609,43 @@ export default class GameScene extends Phaser.Scene {
       [ghost1, ghost2, ghost3, ghost4, ghost5].forEach(g => {
         this.enemies.add(g);
       });
-    } else {
-      // Floor 2 (Torture Chamber): 3 Knights, 2 Ghosts positioned around room props
-      const knight1 = new Enemy(this, 460, 380); // Near torture bed
-      const knight2 = new Enemy(this, 1180, 1100); // Patrolling near dining table
-      const knight3 = new Enemy(this, 980, 700); // Patrolling the red carpet
+    } else if (this.currentMapKey === 'CemeterySouls') {
+      // Cemetery: Patrolling fallen knights and haunting ghosts among tombstones
+      const k1 = new Enemy(this, 950, 750);
+      const k2 = new Enemy(this, 1420, 850);
+      const k3 = new Enemy(this, 1680, 1350);
 
-      [knight1, knight2, knight3].forEach(k => {
+      [k1, k2, k3].forEach(k => {
         this.knights.add(k);
         this.enemies.add(k);
       });
 
-      const ghost1 = new GhostEnemy(this, 1680, 280); // Haunting the broken barrels & skeleton
-      const ghost2 = new GhostEnemy(this, 440, 1100); // Lurking by the potion shelves
+      const g1 = new GhostEnemy(this, 750, 550);
+      const g2 = new GhostEnemy(this, 1200, 520);
+      const g3 = new GhostEnemy(this, 1750, 680);
+      const g4 = new GhostEnemy(this, 1500, 1200);
+      const g5 = new GhostEnemy(this, 880, 1250);
 
-      [ghost1, ghost2].forEach(g => {
+      [g1, g2, g3, g4, g5].forEach(g => {
+        this.enemies.add(g);
+      });
+    } else if (this.currentMapKey === 'SoulsBossRoom1') {
+      // SoulsBossRoom1: Path sentinels and boss throne guardian
+      const sentinel1 = new Enemy(this, 1480, 525);
+      const sentinel2 = new Enemy(this, 1220, 525);
+      const bossGuardian = new Enemy(this, 580, 525);
+      const bossGuardian2 = new Enemy(this, 420, 420);
+
+      [sentinel1, sentinel2, bossGuardian, bossGuardian2].forEach(k => {
+        this.knights.add(k);
+        this.enemies.add(k);
+      });
+
+      const throneSpirit1 = new GhostEnemy(this, 420, 620);
+      const throneSpirit2 = new GhostEnemy(this, 300, 525);
+      const pathSpirit = new GhostEnemy(this, 1350, 420);
+
+      [throneSpirit1, throneSpirit2, pathSpirit].forEach(g => {
         this.enemies.add(g);
       });
     }
@@ -529,27 +654,23 @@ export default class GameScene extends Phaser.Scene {
   unlockHatch() {
     this.hatchUnlocked = true;
 
-    // 1. Remove solid collision blocking the hatch
     if (this.hatchObstacle) {
       this.hatchObstacle.destroy();
       this.hatchObstacle = null;
     }
 
-    // 2. Spawn the Open Hatch Sprite with descending stairs
     const hatchX = this.floor === 1 ? Math.round(5540 * this.mapScale) : 75;
     const hatchY = this.floor === 1 ? Math.round(1050 * this.mapScale) : 715;
     const openHatch = this.add.sprite(hatchX, hatchY, 'open_hatch');
     openHatch.setOrigin(0.5, 0.5);
     openHatch.setDepth(20);
 
-    // 3. Golden soul beacon light emanating from the open abyss (subtle, soft)
     const hatchLight = this.add.image(hatchX + 10, hatchY, 'soft_light_glow');
     hatchLight.setDisplaySize(70, 70);
     hatchLight.setAlpha(0.15);
     hatchLight.setDepth(1);
     hatchLight.setBlendMode(Phaser.BlendModes.ADD);
 
-    // 4. Golden soul particles floating upward into the room
     const hatchSparks = this.add.particles(hatchX + 8, hatchY, 'ember_spark', {
       speed: { min: 20, max: 60 },
       angle: { min: -40, max: 40 },
@@ -562,10 +683,8 @@ export default class GameScene extends Phaser.Scene {
     });
     hatchSparks.setDepth(22);
 
-    // 5. Display dramatic Souls banner: "HELGEDOMEN RENAD"
     this.displayRoomClearedBanner();
 
-    // 6. Overlap trigger to transition to next room
     const triggerZone = this.add.zone(hatchX, hatchY, 80, 90);
     this.physics.add.existing(triggerZone, true);
     this.physics.add.overlap(this.player, triggerZone, () => {
@@ -580,7 +699,6 @@ export default class GameScene extends Phaser.Scene {
     bannerContainer.setDepth(2500);
     bannerContainer.setAlpha(0);
 
-    // Banner dark backdrop band
     const bg = this.add.graphics();
     bg.fillStyle(0x060508, 0.75);
     bg.fillRect(-cam.width / 2, -35, cam.width, 70);
@@ -598,9 +716,7 @@ export default class GameScene extends Phaser.Scene {
       strokeThickness: 3,
     }).setOrigin(0.5);
 
-    const subTitleText = this.floor === 1
-      ? 'Luckan i det norra rummet har öppnats — Stig ned i djupet'
-      : 'Luckan i västra väggen har öppnats — Stig ned i djupet';
+    const subTitleText = 'Luckan i det norra rummet har öppnats — Stig ned i djupet';
 
     const subTitle = this.add.text(0, 20, subTitleText, {
       fontFamily: 'Cinzel, serif',
@@ -640,7 +756,14 @@ export default class GameScene extends Phaser.Scene {
     bg.strokeLineShape(new Phaser.Geom.Line(-cam.width / 2, -35, cam.width / 2, -35));
     bg.strokeLineShape(new Phaser.Geom.Line(-cam.width / 2, 35, cam.width / 2, 35));
 
-    const mainTitle = this.add.text(0, -6, 'KRYPTAN RENAD — SEGER', {
+    const mainTitleText = this.currentMapKey === 'SoulsBossRoom1'
+      ? 'TRONSALEN RENAD — SEGER'
+      : 'KYRKOGÅRDEN RENAD — SEGER';
+    const subTitleText = this.currentMapKey === 'SoulsBossRoom1'
+      ? 'Förfädrens tronsal har befriats från mörkret'
+      : 'Samtliga fasor bland gravarna har fördrivits';
+
+    const mainTitle = this.add.text(0, -6, mainTitleText, {
       fontFamily: 'Cinzel, serif',
       fontSize: '28px',
       fontStyle: 'bold',
@@ -650,7 +773,7 @@ export default class GameScene extends Phaser.Scene {
       strokeThickness: 3,
     }).setOrigin(0.5);
 
-    const subTitle = this.add.text(0, 20, 'Samtliga fasor i tortyrkammaren har fördrivits', {
+    const subTitle = this.add.text(0, 20, subTitleText, {
       fontFamily: 'Cinzel, serif',
       fontSize: '13px',
       letterSpacing: 3,
@@ -679,13 +802,15 @@ export default class GameScene extends Phaser.Scene {
       this.player.body.setVelocity(0, 0);
     }
 
-    // Camera fade out to black
     this.cameras.main.fade(800, 0, 0, 0, false, (cam, progress) => {
       if (progress === 1) {
         this.scene.restart({
           floor: 2,
           souls: this.player.souls,
           health: this.player.health,
+          maxHealth: this.player.maxHealth,
+          stamina: this.player.stamina,
+          maxStamina: this.player.maxStamina,
         });
       }
     });
@@ -753,6 +878,32 @@ export default class GameScene extends Phaser.Scene {
       }
       this.player.setDepth(this.player.y + 10);
 
+      // Check door proximity & handle [E] key interaction
+      if (!this.isTransitioning && this.doorTriggers && this.doorTriggers.length > 0) {
+        let nearDoor = null;
+        for (const dt of this.doorTriggers) {
+          const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, dt.x, dt.y);
+          if (dist <= dt.radius) {
+            nearDoor = dt;
+            break;
+          }
+        }
+
+        if (nearDoor) {
+          if (!this.doorPromptContainer.visible) {
+            this.doorPromptContainer.setVisible(true);
+            this.doorPromptText.setText(nearDoor.config.prompt || 'Öppna dörren [E]');
+          }
+          if (Phaser.Input.Keyboard.JustDown(this.keyE)) {
+            this.transitionToMap(nearDoor.config);
+          }
+        } else {
+          if (this.doorPromptContainer && this.doorPromptContainer.visible) {
+            this.doorPromptContainer.setVisible(false);
+          }
+        }
+      }
+
       // Update all active enemies
       this.enemies.getChildren().forEach(enemy => {
         enemy.update(time, delta, this.player);
@@ -764,7 +915,7 @@ export default class GameScene extends Phaser.Scene {
           if (enemy.state !== 'DEAD' && enemy.lastHitSwingId !== this.player.currentSwingId) {
             if (this.player.isPointInAttackCone(enemy.x, enemy.y)) {
               enemy.lastHitSwingId = this.player.currentSwingId;
-              const hammerDamage = 45; // Heavy crushing colossal hammer impact
+              const hammerDamage = 45;
               enemy.takeDamage(hammerDamage, this.player.x, this.player.y);
             }
           }
@@ -773,7 +924,7 @@ export default class GameScene extends Phaser.Scene {
 
       // Check room cleared condition
       if (!this.hatchUnlocked && this.enemies.countActive(true) === 0) {
-        if (this.floor === 1) {
+        if (this.currentMapKey === 'SoulsChapel') {
           this.unlockHatch();
         } else {
           this.displayVictoryBanner();
