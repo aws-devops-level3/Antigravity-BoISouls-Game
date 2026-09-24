@@ -46,8 +46,8 @@ export default class SoulsHUD {
     });
     this.soulContainer.add(this.soulText);
 
-    // Bottom Left Vial of Blood slot (drink_flask on [Q])
-    this.estusContainer = this.scene.add.container(68, this.scene.cameras.main.height - 72);
+    // Vial of Blood slot positioned directly under stamina bar (drink_flask on [Q])
+    this.estusContainer = this.scene.add.container(75, 129);
     this.estusContainer.setScrollFactor(0);
     this.estusContainer.setDepth(1001);
 
@@ -55,15 +55,15 @@ export default class SoulsHUD {
     this.drawFlaskBox(false);
     this.estusContainer.add(this.estusBox);
 
-    // Large Vial of Blood Sprite (128x128 scaled to ~67px)
-    this.flaskImage = this.scene.add.image(0, -2, 'flask_red');
-    this.flaskImage.setScale(0.52);
+    // Large Vial of Blood Sprite (128x128 scaled to ~83px)
+    this.flaskImage = this.scene.add.image(0, -1, 'flask_red');
+    this.flaskImage.setScale(0.65);
     this.estusContainer.add(this.flaskImage);
 
-    // Key badge '[Q]' at top-left
-    this.keyBadge = this.scene.add.text(-32, -46, '[Q]', {
+    // Keycap badge '[Q]' at top-left
+    this.keyBadge = this.scene.add.text(-30, -32, '[Q]', {
       fontFamily: 'Cinzel, serif',
-      fontSize: '12px',
+      fontSize: '13px',
       fontStyle: 'bold',
       color: '#f5efe6',
       stroke: '#000000',
@@ -71,10 +71,10 @@ export default class SoulsHUD {
     });
     this.estusContainer.add(this.keyBadge);
 
-    // Charges count in bottom-right
-    this.estusCountText = this.scene.add.text(14, 10, '3', {
+    // Charges count in bottom-right (large 22px bold)
+    this.estusCountText = this.scene.add.text(18, 14, '3', {
       fontFamily: 'Cinzel, serif',
-      fontSize: '18px',
+      fontSize: '22px',
       fontStyle: 'bold',
       color: '#ffffff',
       stroke: '#000000',
@@ -83,7 +83,7 @@ export default class SoulsHUD {
     this.estusContainer.add(this.estusCountText);
 
     // Vial of Blood title underneath
-    this.estusLabel = this.scene.add.text(0, 42, 'VIAL OF BLOOD', {
+    this.estusLabel = this.scene.add.text(0, 50, 'VIAL OF BLOOD', {
       fontFamily: 'Cinzel, serif',
       fontSize: '11px',
       fontStyle: 'bold',
@@ -96,7 +96,7 @@ export default class SoulsHUD {
     // Resize listener to keep HUD anchored
     this.scene.scale.on('resize', (gameSize) => {
       this.soulContainer.setPosition(gameSize.width - 180, gameSize.height - 48);
-      this.estusContainer.setPosition(68, gameSize.height - 72);
+      this.estusContainer.setPosition(75, 129);
     });
   }
 
@@ -104,17 +104,17 @@ export default class SoulsHUD {
     this.estusBox.clear();
     // Outer shadow / dark backdrop
     this.estusBox.fillStyle(0x070509, 0.92);
-    this.estusBox.fillRoundedRect(-36, -36, 72, 72, 8);
+    this.estusBox.fillRoundedRect(-43, -43, 86, 86, 10);
 
     // Ornate metallic frame
     const borderColor = isEmpty ? 0x5a4444 : 0xc99e3a;
-    this.estusBox.lineStyle(2.2, borderColor, 0.95);
-    this.estusBox.strokeRoundedRect(-36, -36, 72, 72, 8);
+    this.estusBox.lineStyle(2.4, borderColor, 0.95);
+    this.estusBox.strokeRoundedRect(-43, -43, 86, 86, 10);
 
     // Inner subtle crimson/gold trim
     if (!isEmpty) {
       this.estusBox.lineStyle(1.0, 0xef233c, 0.45);
-      this.estusBox.strokeRoundedRect(-32, -32, 64, 64, 6);
+      this.estusBox.strokeRoundedRect(-38, -38, 76, 76, 8);
     }
   }
 
