@@ -493,7 +493,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     // Check if player has flask charges remaining
     if (this.flaskCharges <= 0) {
-      this.showFloatingText('Tom flaska!', 0xef4444);
+      this.showFloatingText('Empty Vial of Blood!', 0xef4444);
       return false;
     }
 
@@ -575,7 +575,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     const flaskY = this.y - 12;
     const flaskImg = this.scene.add.image(flaskX, flaskY, 'flask_red');
     flaskImg.setDepth(this.depth + 2);
-    flaskImg.setScale(0.75);
+    flaskImg.setScale(0.35);
     flaskImg.setAngle(this.flipX ? 25 : -25);
 
     this.scene.tweens.add({

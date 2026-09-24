@@ -46,8 +46,8 @@ export default class SoulsHUD {
     });
     this.soulContainer.add(this.soulText);
 
-    // Bottom Left Crimson Flask slot (drink_flask on [Q])
-    this.estusContainer = this.scene.add.container(54, this.scene.cameras.main.height - 56);
+    // Bottom Left Vial of Blood slot (drink_flask on [Q])
+    this.estusContainer = this.scene.add.container(68, this.scene.cameras.main.height - 72);
     this.estusContainer.setScrollFactor(0);
     this.estusContainer.setDepth(1001);
 
@@ -55,64 +55,66 @@ export default class SoulsHUD {
     this.drawFlaskBox(false);
     this.estusContainer.add(this.estusBox);
 
-    // Flask Sprite (32x32)
+    // Large Vial of Blood Sprite (128x128 scaled to ~67px)
     this.flaskImage = this.scene.add.image(0, -2, 'flask_red');
-    this.flaskImage.setScale(0.85);
+    this.flaskImage.setScale(0.52);
     this.estusContainer.add(this.flaskImage);
 
     // Key badge '[Q]' at top-left
-    this.keyBadge = this.scene.add.text(-18, -26, '[Q]', {
+    this.keyBadge = this.scene.add.text(-32, -46, '[Q]', {
+      fontFamily: 'Cinzel, serif',
+      fontSize: '12px',
+      fontStyle: 'bold',
+      color: '#f5efe6',
+      stroke: '#000000',
+      strokeThickness: 3,
+    });
+    this.estusContainer.add(this.keyBadge);
+
+    // Charges count in bottom-right
+    this.estusCountText = this.scene.add.text(14, 10, '3', {
+      fontFamily: 'Cinzel, serif',
+      fontSize: '18px',
+      fontStyle: 'bold',
+      color: '#ffffff',
+      stroke: '#000000',
+      strokeThickness: 4,
+    });
+    this.estusContainer.add(this.estusCountText);
+
+    // Vial of Blood title underneath
+    this.estusLabel = this.scene.add.text(0, 42, 'VIAL OF BLOOD', {
       fontFamily: 'Cinzel, serif',
       fontSize: '11px',
       fontStyle: 'bold',
       color: '#e2d3af',
       stroke: '#000000',
-      strokeThickness: 2,
-    });
-    this.estusContainer.add(this.keyBadge);
-
-    // Charges count in bottom-right
-    this.estusCountText = this.scene.add.text(6, 5, '3', {
-      fontFamily: 'Cinzel, serif',
-      fontSize: '14px',
-      fontStyle: 'bold',
-      color: '#fff',
-      stroke: '#000000',
       strokeThickness: 3,
-    });
-    this.estusContainer.add(this.estusCountText);
-
-    this.estusLabel = this.scene.add.text(0, 25, 'Röd Flaska', {
-      fontFamily: 'Cinzel, serif',
-      fontSize: '11px',
-      color: '#d4af37',
-      stroke: '#000000',
-      strokeThickness: 2,
     }).setOrigin(0.5, 0);
     this.estusContainer.add(this.estusLabel);
 
     // Resize listener to keep HUD anchored
     this.scene.scale.on('resize', (gameSize) => {
       this.soulContainer.setPosition(gameSize.width - 180, gameSize.height - 48);
-      this.estusContainer.setPosition(54, gameSize.height - 56);
+      this.estusContainer.setPosition(68, gameSize.height - 72);
     });
   }
 
   drawFlaskBox(isEmpty = false) {
     this.estusBox.clear();
     // Outer shadow / dark backdrop
-    this.estusBox.fillStyle(0x070509, 0.9);
-    this.estusBox.fillRoundedRect(-20, -20, 40, 40, 6);
+    this.estusBox.fillStyle(0x070509, 0.92);
+    this.estusBox.fillRoundedRect(-36, -36, 72, 72, 8);
 
-    // Metallic frame
-    const borderColor = isEmpty ? 0x5a4444 : 0x9b783e;
-    this.estusBox.lineStyle(1.8, borderColor, 0.9);
-    this.estusBox.strokeRoundedRect(-20, -20, 40, 40, 6);
+    // Ornate metallic frame
+    const borderColor = isEmpty ? 0x5a4444 : 0xc99e3a;
+    this.estusBox.lineStyle(2.2, borderColor, 0.95);
+    this.estusBox.strokeRoundedRect(-36, -36, 72, 72, 8);
 
-    // Inner subtle gold trim
+    // Inner subtle crimson/gold trim
     if (!isEmpty) {
-      this.estusBox.lineStyle(0.8, 0xef233c, 0.4);
-      this.estusBox.strokeRoundedRect(-17, -17, 34, 34, 4);
+      this.estusBox.lineStyle(1.0, 0xef233c, 0.45);
+      this.estusBox.strokeRoundedRect(-32, -32, 64, 64, 6);
     }
   }
 
