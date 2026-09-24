@@ -10,8 +10,8 @@ export default class BootScene extends Phaser.Scene {
     this.load.image('dungeon_bg', '/assets/dungeon_background.jpg');
     this.load.image('dungeon_bg_room2', '/assets/dungeon_room2.jpg');
     this.load.spritesheet('player_knight', '/assets/player_spritesheet.png', {
-      frameWidth: 32,
-      frameHeight: 32,
+      frameWidth: 112,
+      frameHeight: 120,
     });
     this.load.image('hammer', '/assets/hammer.png');
     this.load.image('reach_arc', '/assets/reach_arc.png');
@@ -22,6 +22,14 @@ export default class BootScene extends Phaser.Scene {
     this.load.image('greatsword_bloody', '/assets/greatsword_bloody.png');
     this.load.image('knight_enemy', '/assets/knight_enemy.png');
     this.load.image('ghost_enemy', '/assets/ghost_enemy.png');
+    this.load.image('skeleton_enemy', '/assets/skeleton_enemy.png');
+    this.load.image('bone_arrow', '/assets/bone_arrow.png');
+    this.load.image('boss_enemy', '/assets/boss_enemy.png');
+    this.load.image('spectral_orb', '/assets/spectral_orb.png');
+    this.load.image('chicken_npc', '/assets/chicken.png');
+    this.load.audio('chicken_squawk', encodeURI('/assets/sounds/Chicken sounds hen clucking (1).mp3'));
+    this.load.audio('chicken_cluck', encodeURI('/assets/sounds/Chicken sounds hen clucking (1).mp3'));
+    this.load.audio('blood_splat', '/assets/sounds/blood_splat.wav');
     // Dynamically preload all registered levels and their .dd2vtt data
     Object.values(LEVELS).forEach(lvl => {
       if (lvl.vttPath) {
@@ -58,6 +66,21 @@ export default class BootScene extends Phaser.Scene {
     if (this.textures.exists('ghost_enemy')) {
       this.textures.get('ghost_enemy').setFilter(Phaser.Textures.FilterMode.NEAREST);
     }
+    if (this.textures.exists('skeleton_enemy')) {
+      this.textures.get('skeleton_enemy').setFilter(Phaser.Textures.FilterMode.NEAREST);
+    }
+    if (this.textures.exists('bone_arrow')) {
+      this.textures.get('bone_arrow').setFilter(Phaser.Textures.FilterMode.NEAREST);
+    }
+    if (this.textures.exists('boss_enemy')) {
+      this.textures.get('boss_enemy').setFilter(Phaser.Textures.FilterMode.NEAREST);
+    }
+    if (this.textures.exists('chicken_npc')) {
+      this.textures.get('chicken_npc').setFilter(Phaser.Textures.FilterMode.NEAREST);
+    }
+    if (this.textures.exists('spectral_orb')) {
+      this.textures.get('spectral_orb').setFilter(Phaser.Textures.FilterMode.LINEAR);
+    }
 
     // Ghost floating animations
     if (!this.anims.exists('ghost_float')) {
@@ -77,22 +100,48 @@ export default class BootScene extends Phaser.Scene {
       });
     }
 
-    // Player character animations
+    // Player character animations (112x120 frames)
+    // 1. Idle: Rad 1 (Frames 0 to 9)
     if (!this.anims.exists('player_idle')) {
       this.anims.create({
         key: 'player_idle',
-        frames: [{ key: 'player_knight', frame: 0 }],
-        frameRate: 1,
+        frames: this.anims.generateFrameNumbers('player_knight', { start: 0, end: 9 }),
+        frameRate: 8,
         repeat: -1,
       });
     }
 
-    if (!this.anims.exists('player_walk')) {
+    // 2. Run: 8-frame springcykel med benrörelser (Frames 10 till 17) med hög och mjuk FPS
+    if (this.anims.exists('player_walk')) {
+      this.anims.remove('player_walk');
+    }
+    if (this.anims.exists('player_run')) {
+      this.anims.remove('player_run');
+    }
+    this.anims.create({
+      key: 'player_run',
+      frames: this.anims.generateFrameNumbers('player_knight', { start: 10, end: 17 }),
+      frameRate: 22,
+      repeat: -1,
+    });
+
+    // 3. Attack: Rad 3 (Frames 20 to 29) - Tvåhandat överhandsslag med hammaren
+    if (!this.anims.exists('player_attack')) {
       this.anims.create({
-        key: 'player_walk',
-        frames: this.anims.generateFrameNumbers('player_knight', { start: 0, end: 5 }),
+        key: 'player_attack',
+        frames: this.anims.generateFrameNumbers('player_knight', { start: 20, end: 29 }),
+        frameRate: 15,
+        repeat: 0,
+      });
+    }
+
+    // 4. Death: Rad 5 (Frames 40 to 49)
+    if (!this.anims.exists('player_death')) {
+      this.anims.create({
+        key: 'player_death',
+        frames: this.anims.generateFrameNumbers('player_knight', { start: 40, end: 49 }),
         frameRate: 9,
-        repeat: -1,
+        repeat: 0,
       });
     }
 
@@ -114,6 +163,7 @@ export default class BootScene extends Phaser.Scene {
     this.createGhostClawTexture();
     this.createOpenHatchTexture();
     this.createDoorRuneTexture();
+    this.createBloodTextures();
 
     this.scene.start('GameScene');
   }
@@ -914,5 +964,85 @@ export default class BootScene extends Phaser.Scene {
     ctx.stroke();
 
     canvas.refresh();
+  }
+
+  // Blood Droplets, Splatter Decals & Feathers for NPC explosions
+  createBloodTextures() {
+    // 1. Blood droplet particle (10x10)
+    const dropCanvas = this.textures.createCanvas('blood_drop', 10, 10);
+    const dropCtx = dropCanvas.getContext();
+    dropCtx.fillStyle = '#4a0404';
+    dropCtx.beginPath();
+    dropCtx.arc(5, 5, 4.5, 0, Math.PI * 2);
+    dropCtx.fill();
+
+    dropCtx.fillStyle = '#b91c1c';
+    dropCtx.beginPath();
+    dropCtx.arc(5, 5, 3.5, 0, Math.PI * 2);
+    dropCtx.fill();
+
+    dropCtx.fillStyle = '#f87171';
+    dropCtx.beginPath();
+    dropCtx.arc(3.5, 3.5, 1.2, 0, Math.PI * 2);
+    dropCtx.fill();
+    dropCanvas.refresh();
+
+    // 2. Blood splatter pool decal (48x48)
+    const splatCanvas = this.textures.createCanvas('blood_splat', 48, 48);
+    const splatCtx = splatCanvas.getContext();
+
+    // Central dark pool
+    splatCtx.fillStyle = '#660a0a';
+    splatCtx.beginPath();
+    splatCtx.ellipse(24, 24, 15, 12, 0.2, 0, Math.PI * 2);
+    splatCtx.fill();
+
+    splatCtx.fillStyle = '#991b1b';
+    splatCtx.beginPath();
+    splatCtx.ellipse(23, 23, 11, 8.5, -0.1, 0, Math.PI * 2);
+    splatCtx.fill();
+
+    // Splatter tendrils and peripheral droplets
+    const droplets = [
+      { x: 38, y: 15, r: 3.5 },
+      { x: 43, y: 27, r: 2.8 },
+      { x: 36, y: 39, r: 3.2 },
+      { x: 23, y: 43, r: 4.0 },
+      { x: 10, y: 37, r: 2.8 },
+      { x: 7,  y: 21, r: 3.3 },
+      { x: 15, y: 9,  r: 2.8 },
+      { x: 29, y: 7,  r: 2.4 },
+      { x: 44, y: 11, r: 1.6 },
+      { x: 5,  y: 29, r: 2.0 },
+      { x: 33, y: 22, r: 5.0 },
+      { x: 17, y: 26, r: 4.8 },
+    ];
+    splatCtx.fillStyle = '#7f1d1d';
+    droplets.forEach(d => {
+      splatCtx.beginPath();
+      splatCtx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+      splatCtx.fill();
+    });
+    splatCanvas.refresh();
+
+    // 3. Feather particle (10x10) - delicate, small feather
+    const featherCanvas = this.textures.createCanvas('feather_particle', 10, 10);
+    const featherCtx = featherCanvas.getContext();
+    featherCtx.fillStyle = '#f9fafb';
+    featherCtx.beginPath();
+    featherCtx.ellipse(5, 5, 2, 4.2, 0.35, 0, Math.PI * 2);
+    featherCtx.fill();
+
+    featherCtx.strokeStyle = '#d1d5db';
+    featherCtx.lineWidth = 0.8;
+    featherCtx.beginPath();
+    featherCtx.moveTo(5, 1.5);
+    featherCtx.lineTo(5, 8.5);
+    featherCtx.stroke();
+
+    // Tiny red quill tip accent
+    featherCtx.fillStyle = '#dc2626';
+    featherCtx.fillRect(4.5, 7.5, 1, 1);
+    featherCanvas.refresh();
   }
 }

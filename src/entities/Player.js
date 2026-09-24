@@ -18,28 +18,31 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
-    // Scale for authentic pixel-art character presence
-    this.baseScale = 2.2;
+    // Scale for authentic character presence (matching enemy knight height ~76px)
+    this.baseScale = 0.76;
     this.setScale(this.baseScale);
+    this.clearTint();
 
-    // Physics body adjustments for 2.5D / top-down movement
-    this.body.setSize(14, 12);
-    this.body.setOffset(9, 16);
+    // Physics body adjustments for 2.5D / top-down movement at knight's feet
+    this.body.setSize(28, 16);
+    this.body.setOffset(42, 98);
     this.setCollideWorldBounds(true);
 
-    // Play default idle animation
+    // Play default idle animation (Rad 1, frames 0 to 9)
     this.play('player_idle');
 
-    // Movement attributes - tuned for Soulsborne weight and response
-    this.baseSpeed = 180;
-    this.sprintSpeed = 260;
+    // Movement attributes - runSpeed (260 px/s) standard hastighet hela tiden
+    this.runSpeed = 260;
+    this.baseSpeed = this.runSpeed;
+    this.sprintSpeed = this.runSpeed;
     this.rollSpeed = 400;
-    this.currentSpeed = this.baseSpeed;
+    this.currentSpeed = this.runSpeed;
     this.body.setMaxVelocity(this.rollSpeed);
 
     // Player Stats
     this.maxHealth = 100;
     this.health = 100;
+    this.isDead = false;
     this.maxStamina = 100;
     this.stamina = 100;
     this.souls = 2450;
@@ -58,17 +61,14 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.lastFacingVector = new Phaser.Math.Vector2(0, 1); // default facing forward
     this.afterimageTimer = 0;
 
-    // Colossal Warhammer equipped in Right Hand (slightly larger than player)
-    this.hammerScale = 2.8;
+    // Colossal Warhammer is integrated directly in the knight artwork
     this.hammer = scene.add.sprite(x, y, 'hammer');
-    this.hammer.setOrigin(0.18, 0.82); // Grip pivot
-    this.hammer.setScale(this.hammerScale);
-    this.hammer.setDepth(this.depth + 1);
+    this.hammer.setVisible(false);
 
     // Hammer Attack attributes (Heavy overhead smash)
     this.isAttacking = false;
     this.attackTimer = 0;
-    this.attackDuration = 0.44; // seconds (colossal hammer swing timing)
+    this.attackDuration = 0.67; // seconds (colossal hammer 10-frame overhead strike @ 15fps)
     this.attackStaminaCost = 22; // 22% stamina cost
     this.attackAngle = 0;
     this.attackRange = 78; // Extended reach for colossal hammer
@@ -127,6 +127,11 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   update(time, delta) {
+    if (this.health <= 0 || this.isDead) {
+      this.body.setVelocity(0, 0);
+      return;
+    }
+
     const dt = delta / 1000;
 
     // Update stamina delay timer
@@ -154,6 +159,8 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   handleInput(dt) {
+    if (this.health <= 0) return;
+
     // Check for Dodge Roll trigger (SPACE)
     if (Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
       if (this.stamina >= this.rollStaminaCost && !this.isRolling) {
@@ -178,20 +185,13 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       this.lastFacingVector.set(dx, dy).normalize();
     }
 
-    // Sprinting logic with Stamina check
-    const wantSprint = this.keys.SHIFT.isDown && this.isMoving;
-    if (wantSprint && this.stamina > 5) {
-      this.isSprinting = true;
-      this.currentSpeed = this.sprintSpeed;
-      this.stamina = Math.max(0, this.stamina - this.staminaSprintCost * dt);
-      this.staminaRegenDelayTimer = 0.3; // brief pause after sprinting
-    } else {
-      this.isSprinting = false;
-      this.currentSpeed = this.baseSpeed;
-      // Regenerate stamina if delay cooldown has passed
-      if (this.staminaRegenDelayTimer <= 0) {
-        this.stamina = Math.min(this.maxStamina, this.stamina + this.staminaRegenRate * dt);
-      }
+    // Spelaren rör sig alltid med full runSpeed (260 px/s) hela tiden
+    this.currentSpeed = this.runSpeed;
+    this.isSprinting = true;
+
+    // Regenerera uthållighet om pauscooldown har passerat (vanlig förflyttning dränerar inte stamina)
+    if (this.staminaRegenDelayTimer <= 0) {
+      this.stamina = Math.min(this.maxStamina, this.stamina + this.staminaRegenRate * dt);
     }
   }
 
@@ -273,6 +273,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       this.setRotation(0);
       this.setScale(this.baseScale, this.baseScale);
       this.dustEmitter.emitParticleAt(this.x, this.y + 16, 4);
+      this.play('player_idle', true);
 
       // Decelerate smoothly
       this.body.setVelocity(
@@ -283,8 +284,8 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   createAfterimage() {
-    const frameIndex = this.anims.currentFrame ? this.anims.currentFrame.textureFrame : 0;
-    const ghost = this.scene.add.sprite(this.x, this.y, 'player_knight', frameIndex);
+    const frame = this.anims.currentFrame ? this.anims.currentFrame.textureFrame : 0;
+    const ghost = this.scene.add.sprite(this.x, this.y, 'player_knight', frame);
     ghost.setFlipX(this.flipX);
     ghost.setRotation(this.rotation);
     ghost.setScale(this.scaleX, this.scaleY);
@@ -303,30 +304,10 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
         ghost.destroy();
       },
     });
-
-    if (this.hammer) {
-      const ghostHammer = this.scene.add.sprite(this.hammer.x, this.hammer.y, 'hammer');
-      ghostHammer.setOrigin(this.hammer.originX, this.hammer.originY);
-      ghostHammer.setRotation(this.hammer.rotation);
-      ghostHammer.setScale(this.hammer.scaleX, this.hammer.scaleY);
-      ghostHammer.setAlpha(0.45);
-      ghostHammer.setTint(0x7799bb);
-      ghostHammer.setDepth(this.hammer.depth - 1);
-
-      this.scene.tweens.add({
-        targets: ghostHammer,
-        alpha: 0,
-        duration: 250,
-        ease: 'Sine.easeOut',
-        onComplete: () => {
-          ghostHammer.destroy();
-        },
-      });
-    }
   }
 
   tryAttack(pointer) {
-    if (this.isRolling || this.isAttacking || this.attackCooldownTimer > 0) {
+    if (this.health <= 0 || this.isRolling || this.isAttacking || this.attackCooldownTimer > 0) {
       return;
     }
 
@@ -340,6 +321,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   performAttack(pointer) {
     this.isAttacking = true;
     this.attackTimer = 0;
+    this.attackDuration = 0.67; // 10 frames @ 15fps
     this.isSprinting = false;
     this.currentSwingId++;
     this.hasTriggeredSmash = false;
@@ -358,6 +340,9 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     const isFacingLeft = Math.cos(this.attackAngle) < 0;
     this.setFlipX(isFacingLeft);
     this.lastFacingVector.set(Math.cos(this.attackAngle), Math.sin(this.attackAngle));
+
+    // Play two-handed overhead hammer strike animation (Rad 3, frames 20-29)
+    this.play('player_attack', true);
 
     // Initial forward lunge impulse
     const lungeSpeed = 160;
@@ -446,75 +431,29 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     const progress = Math.min(1, this.attackTimer / this.attackDuration);
 
     // Decelerate lunge smoothly
-    const currentLunge = Phaser.Math.Linear(160, 0, Math.pow(progress, 1.2));
+    const currentLunge = Phaser.Math.Linear(150, 0, Math.pow(progress, 1.4));
     this.body.setVelocity(
       Math.cos(this.attackAngle) * currentLunge,
       Math.sin(this.attackAngle) * currentLunge
     );
 
-    const isFacingLeft = Math.cos(this.attackAngle) < 0;
-    const sign = isFacingLeft ? -1 : 1;
+    // Reach arc indicator sweeps forward as hammer is brought overhead down (progress ~0.60)
+    if (progress >= 0.60 && !this.hasSpawnedReachIndicator) {
+      this.hasSpawnedReachIndicator = true;
+      this.spawnReachIndicator(this.attackAngle);
+    }
 
-    // Anchor hammer at right hand
-    const handX = this.x + (isFacingLeft ? -8 : 8);
-    const handY = this.y + 1;
-    this.hammer.setPosition(handX, handY);
-    this.hammer.setDepth(this.depth + 2);
-
-    if (progress < 0.35) {
-      // Phase 1: Heavy Wind-up (hammer raised high behind player)
-      const p = progress / 0.35;
-      const startAngle = isFacingLeft ? 2.45 : -0.75;
-      const windupAngle = this.attackAngle - (sign * 1.5);
-      const curAim = lerpAngle(startAngle, windupAngle, p);
-      this.hammer.setRotation(getHammerRotation(curAim, isFacingLeft));
-      this.hammer.setScale(isFacingLeft ? -this.hammerScale : this.hammerScale, this.hammerScale);
-
-      // Player leans back under the weight
-      this.setRotation(-sign * p * 0.12);
-      this.setScale(this.baseScale, this.baseScale);
-    } else if (progress < 0.65) {
-      // Phase 2: Downward Smash (accelerates towards the ground)
-      const p = (progress - 0.35) / 0.30;
-      const easePow = Math.pow(p, 2.2);
-      const windupAngle = this.attackAngle - (sign * 1.5);
-      const endSmashAngle = this.attackAngle + (sign * 0.45);
-      const curAim = lerpAngle(windupAngle, endSmashAngle, easePow);
-      this.hammer.setRotation(getHammerRotation(curAim, isFacingLeft));
-      this.hammer.setScale(isFacingLeft ? -this.hammerScale : this.hammerScale, this.hammerScale);
-
-      // Trigger reach indicator arc as the hammer head sweeps forward
-      if (progress >= 0.35 && !this.hasSpawnedReachIndicator) {
-        this.hasSpawnedReachIndicator = true;
-        this.spawnReachIndicator(this.attackAngle);
-      }
-
-      // Player lunges forward with the swing
-      this.setRotation(sign * Math.sin(p * Math.PI) * 0.18);
-      this.setScale(this.baseScale, this.baseScale);
-
-      // Ground impact at apex of swing
-      if (progress >= 0.52 && !this.hasTriggeredSmash) {
-        this.hasTriggeredSmash = true;
-        this.triggerHammerImpact();
-      }
-    } else {
-      // Phase 3: Recovery (hammer rests on the ground then rises)
-      const p = (progress - 0.65) / 0.35;
-      const restAngle = this.attackAngle + (sign * 0.45);
-      const readyAngle = isFacingLeft ? 2.45 : -0.75;
-      const curAim = lerpAngle(restAngle, readyAngle, p);
-      this.hammer.setRotation(getHammerRotation(curAim, isFacingLeft));
-      this.hammer.setScale(isFacingLeft ? -this.hammerScale : this.hammerScale, this.hammerScale);
-
-      this.setRotation(Phaser.Math.Linear(sign * 0.15, 0, p));
-      this.setScale(this.baseScale, this.baseScale);
+    // Heavy hammer ground impact at apex of downward smash (progress ~0.80)
+    if (progress >= 0.80 && !this.hasTriggeredSmash) {
+      this.hasTriggeredSmash = true;
+      this.triggerHammerImpact();
     }
 
     if (this.attackTimer >= this.attackDuration) {
       this.isAttacking = false;
       this.setRotation(0);
       this.setScale(this.baseScale, this.baseScale);
+      this.play('player_idle', true);
       this.attackCooldownTimer = 0.12; // Recovery window before next attack
     }
   }
@@ -531,7 +470,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   takeDamage(amount) {
-    if (this.isInvulnerable || this.health <= 0) {
+    if (this.isInvulnerable || this.health <= 0 || this.isDead) {
       return false; // Dodged via i-frames or already dead!
     }
 
@@ -542,6 +481,15 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.scene.time.delayedCall(160, () => {
       if (this.health > 0) this.clearTint();
     });
+
+    if (this.health <= 0) {
+      this.isDead = true;
+      this.play('player_death', true);
+      this.body.setVelocity(0, 0);
+      if (this.scene && typeof this.scene.handlePlayerDeath === 'function') {
+        this.scene.handlePlayerDeath();
+      }
+    }
 
     // Sparks / blood puff
     this.scene.add.particles(this.x, this.y + 8, 'ember_spark', {
@@ -564,6 +512,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   handleMovement(dt) {
+    if (this.health <= 0) return;
     if (this.isMoving) {
       // Normalize vector so diagonal movement isn't 1.41x faster!
       this.moveVector.normalize();
@@ -603,22 +552,22 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   handleAnimation(dt) {
-    if (this.isMoving) {
-      this.anims.play('player_walk', true);
-      this.anims.timeScale = this.isSprinting ? 1.4 : 1.0;
+    if (this.health <= 0 || this.isRolling || this.isAttacking) {
+      return; // Handled by death, roll or attack states
+    }
 
-      // Walking bob effect (slight vertical squash & subtle tilt to simulate heavy armor footsteps)
-      const animSpeed = this.isSprinting ? 16 : 10;
-      this.walkCycle += dt * animSpeed;
-      
-      const tilt = Math.cos(this.walkCycle) * 0.04;
-      this.setRotation(tilt);
-      this.setScale(this.baseScale, this.baseScale * (1 + Math.sin(this.walkCycle * 2) * 0.03));
+    if (this.isMoving) {
+      // Run: 8-frame springcykel med benrörelser (Frames 10 till 17) med hög, jämn FPS
+      this.anims.play('player_run', true);
+
+      // Spritarna har redan naturlig framåtlutning och stegrörelse ritad i bildrutorna
+      this.setRotation(0);
+      this.setScale(this.baseScale, this.baseScale);
     } else {
-      // Return gently to neutral stance
+      // Idle: Rad 1 (Frames 0-9)
       this.walkCycle = 0;
       this.anims.play('player_idle', true);
-      this.setRotation(Phaser.Math.Linear(this.rotation, 0, 0.2));
+      this.setRotation(0);
       this.setScale(this.baseScale, this.baseScale);
     }
   }

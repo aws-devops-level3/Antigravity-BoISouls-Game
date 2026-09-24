@@ -2,6 +2,9 @@ import Phaser from 'phaser';
 import Player from '../entities/Player.js';
 import Enemy from '../entities/Enemy.js';
 import GhostEnemy from '../entities/GhostEnemy.js';
+import SkeletonEnemy from '../entities/SkeletonEnemy.js';
+import BossEnemy from '../entities/BossEnemy.js';
+import ChickenNPC from '../entities/ChickenNPC.js';
 import SoulsHUD from '../ui/SoulsHUD.js';
 import level1Data from '../data/SoulsLevel1.json';
 import DD2VTTParser from '../utils/DD2VTTParser.js';
@@ -46,9 +49,10 @@ export default class GameScene extends Phaser.Scene {
 
     this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
 
-    // State flags for hatch and room progression
+    // State flags for hatch, transitions, and player death
     this.hatchUnlocked = false;
     this.isTransitioning = false;
+    this.isPlayerDead = false;
 
     // 1. Render Background based on active map
     let bgKey = 'SoulsChapel_bg';
@@ -93,15 +97,30 @@ export default class GameScene extends Phaser.Scene {
     this.player.stamina = this.initialStamina;
     this.player.maxStamina = this.initialMaxStamina;
 
-    // 7. Spawn Enemies
+    // 7. Spawn Enemies & Neutral NPCs
     this.enemies = this.add.group();
     this.knights = this.add.group();
+    this.enemyProjectiles = this.physics.add.group({ runChildUpdate: true });
     this.spawnEnemies();
+    this.spawnChickens();
 
     // 8. Physics Collisions
     this.physics.add.collider(this.player, this.obstacles);
     this.physics.add.collider(this.knights, this.obstacles);
+    this.physics.add.collider(this.chickens, this.obstacles);
     this.physics.add.collider(this.player, this.enemies);
+    this.physics.add.collider(this.enemyProjectiles, this.obstacles, (arrow) => {
+      if (arrow && arrow.onHitObstacle) arrow.onHitObstacle();
+    });
+    this.physics.add.overlap(this.enemyProjectiles, this.player, (arrow, player) => {
+      if (arrow && arrow.onHitPlayer) arrow.onHitPlayer(player);
+    });
+    this.physics.add.overlap(this.enemyProjectiles, this.chickens, (arrow, chicken) => {
+      if (chicken && chicken.state !== 'DEAD') {
+        chicken.takeDamage(1, arrow.x, arrow.y);
+        if (arrow.onHitObstacle) arrow.onHitObstacle();
+      }
+    });
 
     // 9. Ambient Floating Cinders / Weather
     this.createEmberWeather(worldWidth, worldHeight);
@@ -575,6 +594,12 @@ export default class GameScene extends Phaser.Scene {
         if (e.type === 'ghost') {
           const ghost = new GhostEnemy(this, e.x, e.y);
           this.enemies.add(ghost);
+        } else if (e.type === 'skeleton') {
+          const skeleton = new SkeletonEnemy(this, e.x, e.y);
+          this.enemies.add(skeleton);
+        } else if (e.type === 'boss') {
+          const boss = new BossEnemy(this, e.x, e.y);
+          this.enemies.add(boss);
         } else {
           const knight = new Enemy(this, e.x, e.y);
           this.knights.add(knight);
@@ -629,25 +654,50 @@ export default class GameScene extends Phaser.Scene {
       [g1, g2, g3, g4, g5].forEach(g => {
         this.enemies.add(g);
       });
+
+      const s1 = new SkeletonEnemy(this, 1350, 680);
+      const s2 = new SkeletonEnemy(this, 1050, 1100);
+      const s3 = new SkeletonEnemy(this, 1620, 1050);
+      const s4 = new SkeletonEnemy(this, 820, 920);
+
+      [s1, s2, s3, s4].forEach(s => {
+        this.enemies.add(s);
+      });
     } else if (this.currentMapKey === 'SoulsBossRoom1') {
-      // SoulsBossRoom1: Path sentinels and boss throne guardian
-      const sentinel1 = new Enemy(this, 1480, 525);
-      const sentinel2 = new Enemy(this, 1220, 525);
-      const bossGuardian = new Enemy(this, 580, 525);
-      const bossGuardian2 = new Enemy(this, 420, 420);
+      // SoulsBossRoom1: Vålnadens Drottning at the chest - the sole boss of this realm
+      const boss = new BossEnemy(this, 310, 515);
+      this.enemies.add(boss);
+    }
+  }
 
-      [sentinel1, sentinel2, bossGuardian, bossGuardian2].forEach(k => {
-        this.knights.add(k);
-        this.enemies.add(k);
-      });
+  spawnChickens() {
+    this.chickens = this.physics.add.group();
 
-      const throneSpirit1 = new GhostEnemy(this, 420, 620);
-      const throneSpirit2 = new GhostEnemy(this, 300, 525);
-      const pathSpirit = new GhostEnemy(this, 1350, 420);
+    // Random count between 1 and 3 (max 3 chickens per map)
+    const chickenCount = Phaser.Math.Between(1, 3);
 
-      [throneSpirit1, throneSpirit2, pathSpirit].forEach(g => {
-        this.enemies.add(g);
-      });
+    let candidates = [];
+    if (this.mapConfig && Array.isArray(this.mapConfig.chickenSpawns) && this.mapConfig.chickenSpawns.length > 0) {
+      candidates = [...this.mapConfig.chickenSpawns];
+    } else {
+      const center = (this.mapConfig && this.mapConfig.defaultSpawn) ? this.mapConfig.defaultSpawn : { x: 500, y: 500 };
+      for (let i = 0; i < 4; i++) {
+        candidates.push({
+          x: center.x + Phaser.Math.Between(-100, 100),
+          y: center.y + Phaser.Math.Between(-100, 100),
+        });
+      }
+    }
+
+    Phaser.Utils.Array.Shuffle(candidates);
+
+    const countToSpawn = Math.min(chickenCount, candidates.length);
+    for (let i = 0; i < countToSpawn; i++) {
+      const spot = candidates[i];
+      const jx = spot.x + Phaser.Math.Between(-20, 20);
+      const jy = spot.y + Phaser.Math.Between(-20, 20);
+      const chicken = new ChickenNPC(this, jx, jy);
+      this.chickens.add(chicken);
     }
   }
 
@@ -871,15 +921,128 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
+  handlePlayerDeath() {
+    if (this.isPlayerDead) return;
+    this.isPlayerDead = true;
+
+    if (this.doorPromptContainer) {
+      this.doorPromptContainer.setVisible(false);
+    }
+
+    if (this.player && this.player.body) {
+      this.player.body.setVelocity(0, 0);
+      this.player.play('player_death', true);
+    }
+
+    // Play visceral impact sound if loaded
+    try {
+      if (this.sound && this.sound.get('blood_splat')) {
+        this.sound.play('blood_splat', { volume: 0.8 });
+      }
+    } catch (e) {}
+
+    // Subtle dramatic camera zoom on the fallen player
+    this.cameras.main.zoomTo(1.15, 3000, 'Sine.easeOut');
+
+    // Wait 500ms for player collapse animation, then show the iconic YOU SUCK banner
+    this.time.delayedCall(500, () => {
+      this.displayYouSuckBanner();
+    });
+  }
+
+  displayYouSuckBanner() {
+    const cam = this.cameras.main;
+
+    // Fullscreen UI container fixed to camera
+    const container = this.add.container(cam.width / 2, cam.height / 2);
+    container.setScrollFactor(0);
+    container.setDepth(5000);
+    container.setAlpha(0);
+
+    // Dark atmospheric vignette overlay across the screen
+    const dimOverlay = this.add.graphics();
+    dimOverlay.fillStyle(0x060102, 0.68);
+    dimOverlay.fillRect(-cam.width / 2, -cam.height / 2, cam.width, cam.height);
+
+    // Classic Dark Souls horizontal black banner
+    const bannerHeight = 130;
+    const bannerGfx = this.add.graphics();
+    bannerGfx.fillStyle(0x020001, 0.92);
+    bannerGfx.fillRect(-cam.width / 2, -bannerHeight / 2, cam.width, bannerHeight);
+
+    // Glowing blood-red border lines
+    bannerGfx.lineStyle(2.5, 0x9b1118, 0.95);
+    bannerGfx.strokeLineShape(new Phaser.Geom.Line(-cam.width / 2, -bannerHeight / 2, cam.width / 2, -bannerHeight / 2));
+    bannerGfx.strokeLineShape(new Phaser.Geom.Line(-cam.width / 2, bannerHeight / 2, cam.width / 2, bannerHeight / 2));
+
+    // Subtle dark red inner pinstripe
+    bannerGfx.lineStyle(1, 0x4e0509, 0.7);
+    bannerGfx.strokeLineShape(new Phaser.Geom.Line(-cam.width / 2, -bannerHeight / 2 + 5, cam.width / 2, -bannerHeight / 2 + 5));
+    bannerGfx.strokeLineShape(new Phaser.Geom.Line(-cam.width / 2, bannerHeight / 2 - 5, cam.width / 2, bannerHeight / 2 - 5));
+
+    // "YOU SUCK" in iconic Dark Souls typography with ominous deep red color
+    const deathText = this.add.text(0, 0, 'YOU SUCK', {
+      fontFamily: 'Cinzel, Georgia, serif',
+      fontSize: '66px',
+      fontStyle: 'bold',
+      letterSpacing: 14,
+      color: '#cf1823',
+      stroke: '#220003',
+      strokeThickness: 8,
+      shadow: {
+        offsetX: 0,
+        offsetY: 6,
+        color: '#4a0408',
+        blur: 24,
+        stroke: true,
+        fill: true,
+      },
+    }).setOrigin(0.5);
+
+    container.add([dimOverlay, bannerGfx, deathText]);
+
+    // Dramatic creeping scale and slow fade in (authentic Soulsborne text pacing)
+    container.setScale(0.90);
+    this.tweens.add({
+      targets: container,
+      alpha: 1,
+      scaleX: 1.05,
+      scaleY: 1.05,
+      duration: 2500,
+      ease: 'Cubic.easeOut',
+    });
+
+    // Hold the banner on screen, then fade to black and respawn at the start of the map
+    this.time.delayedCall(2800, () => {
+      this.cameras.main.fade(1000, 0, 0, 0, false, (camera, progress) => {
+        if (progress === 1) {
+          // Respawn at beginning of the current map
+          this.scene.restart({
+            mapKey: this.currentMapKey,
+            souls: this.player ? this.player.souls : 2450,
+            health: 100,
+            maxHealth: 100,
+            stamina: 100,
+            maxStamina: 100,
+          });
+        }
+      });
+    });
+  }
+
   update(time, delta) {
     if (this.player) {
-      if (!this.isTransitioning) {
+      if (this.player.health <= 0 && !this.isPlayerDead) {
+        this.handlePlayerDeath();
+      }
+
+      if (!this.isTransitioning && !this.isPlayerDead) {
         this.player.update(time, delta);
       }
       this.player.setDepth(this.player.y + 10);
 
       // Check door proximity & handle [E] key interaction
-      if (!this.isTransitioning && this.doorTriggers && this.doorTriggers.length > 0) {
+      if (!this.isTransitioning && !this.isPlayerDead && this.doorTriggers && this.doorTriggers.length > 0) {
         let nearDoor = null;
         for (const dt of this.doorTriggers) {
           const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, dt.x, dt.y);
@@ -909,8 +1072,15 @@ export default class GameScene extends Phaser.Scene {
         enemy.update(time, delta, this.player);
       });
 
+      // Update all active chickens
+      if (this.chickens) {
+        this.chickens.getChildren().forEach(chicken => {
+          chicken.update(time, delta);
+        });
+      }
+
       // Combat hit detection: player colossal hammer smash hitting enemies
-      if (this.player.isAttacking) {
+      if (!this.isPlayerDead && this.player.isAttacking) {
         this.enemies.getChildren().forEach(enemy => {
           if (enemy.state !== 'DEAD' && enemy.lastHitSwingId !== this.player.currentSwingId) {
             if (this.player.isPointInAttackCone(enemy.x, enemy.y)) {
@@ -920,6 +1090,18 @@ export default class GameScene extends Phaser.Scene {
             }
           }
         });
+
+        // Hit detection on chickens
+        if (this.chickens) {
+          this.chickens.getChildren().forEach(chicken => {
+            if (chicken.state !== 'DEAD' && chicken.lastHitSwingId !== this.player.currentSwingId) {
+              if (this.player.isPointInAttackCone(chicken.x, chicken.y)) {
+                chicken.lastHitSwingId = this.player.currentSwingId;
+                chicken.takeDamage(1, this.player.x, this.player.y);
+              }
+            }
+          });
+        }
       }
 
       // Check room cleared condition

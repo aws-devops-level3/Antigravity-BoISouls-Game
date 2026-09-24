@@ -34,6 +34,16 @@ export const LEVELS = {
       { type: 'knight', x: 2310, y: 960 },
       { type: 'ghost',  x: 2457, y: 960 },
     ],
+    // Slumpmässiga spawn-punkter för kycklingar (max 3 väljs per karta)
+    chickenSpawns: [
+      { x: 2180, y: 650 },
+      { x: 1850, y: 920 },
+      { x: 1520, y: 1100 },
+      { x: 2020, y: 1250 },
+      { x: 960,  y: 880 },
+      { x: 650,  y: 920 },
+      { x: 1220, y: 1200 },
+    ],
   },
 
   CemeterySouls: {
@@ -54,6 +64,18 @@ export const LEVELS = {
       { type: 'ghost',  x: 1750, y: 680 },
       { type: 'ghost',  x: 1500, y: 1200 },
       { type: 'ghost',  x: 880, y: 1250 },
+      { type: 'skeleton', x: 1350, y: 680 },
+      { type: 'skeleton', x: 1050, y: 1100 },
+      { type: 'skeleton', x: 1620, y: 1050 },
+      { type: 'skeleton', x: 820, y: 920 },
+    ],
+    chickenSpawns: [
+      { x: 1820, y: 820 },
+      { x: 1550, y: 780 },
+      { x: 1300, y: 950 },
+      { x: 1050, y: 800 },
+      { x: 1420, y: 1150 },
+      { x: 800,  y: 720 },
     ],
   },
 
@@ -67,13 +89,15 @@ export const LEVELS = {
     // Spelaren anländer vid ingången på bron längst till höger där karaktären står på bilden
     defaultSpawn: { x: 1600, y: 522 },
     enemies: [
-      { type: 'knight', x: 1480, y: 525 },
-      { type: 'knight', x: 1220, y: 525 },
-      { type: 'knight', x: 580, y: 525 },
-      { type: 'knight', x: 420, y: 420 },
-      { type: 'ghost',  x: 420, y: 620 },
-      { type: 'ghost',  x: 300, y: 525 },
-      { type: 'ghost',  x: 1350, y: 420 },
+      // Vålnadens Drottning - Den enda fienden, står vid kistan i byggnaden
+      { type: 'boss', x: 310, y: 515 },
+    ],
+    chickenSpawns: [
+      { x: 1480, y: 520 },
+      { x: 1250, y: 520 },
+      { x: 1000, y: 520 },
+      { x: 780,  y: 470 },
+      { x: 780,  y: 570 },
     ],
   },
 

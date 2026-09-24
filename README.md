@@ -34,7 +34,7 @@ Ett stämningsfullt mörkt 2D-actionrollspel i HTML5 och Phaser 3 med estetik, r
 
 - **Spelarkaraktär (Ashen One)**:
   - **Autentisk Pixel Art-modell**: Spelaren styrs nu som en detaljerad pixel art-riddare med mörk rustning, hjälm med glödande visir, mantel/koger på ryggen och inbyggd markskugga.
-  - **Gång- och vilocykel (Walk & Idle)**: Full animerad gångcykel (`player_walk`, 6 bildrutor) med naturlig steg-bobbing och dynamisk hastighet (ökar vid sprint med <kbd>SKIFT</kbd>) samt ett stilla viloläge (`player_idle`).
+  - **Spring- och vilocykel (Run & Idle)**: Full animerad 8-bilders springcykel (`player_run`, 22 fps) med snabb och mjuk stegrörelse, framåtlutning och konstant springhastighet samt viloläge (`player_idle`).
   - **Crisp Pixel Art Scaling**: Skalad till $2.2\times$ med `NEAREST`-filtrering för knivskarpa pixlar som smälter in i dungeon-miljön.
   - 8-vägs rörelse med WASD och piltangenter med normaliserad hastighet.
   - Fysisk tyngd i stegen (acceleration/retardation) och anpassad 2.5D-kollisionskropp ($14 \times 12$ px vid fötterna).

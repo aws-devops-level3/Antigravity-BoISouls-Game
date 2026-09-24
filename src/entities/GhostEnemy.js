@@ -16,18 +16,18 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
-    // Scale reduced by 8% (0.36 * 0.92 = 0.3312)
-    this.baseScale = 0.3312;
+    // Scale for authentic spectral presence matching the player and knight (418px visual height * 0.19 = ~79.4px)
+    this.baseScale = 0.19;
     this.setScale(this.baseScale);
 
-    // Ethereal white spectral body
+    // Ethereal spectral body
     this.baseAlpha = 0.95;
     this.setAlpha(this.baseAlpha);
     this.clearTint();
 
     // Physics body matching ghost torso and center mass
-    this.body.setSize(105, 105);
-    this.body.setOffset(60, 58);
+    this.body.setSize(160, 160);
+    this.body.setOffset(176, 170);
     this.setCollideWorldBounds(true);
 
     // Stats & Attributes
@@ -69,8 +69,8 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
     this.hpBarGraphics.setDepth(2000);
     this.hpBarTimer = 0;
 
-    // Subtle red aura light glow on the floor underneath ghost (depth 1, alpha 0.15, radius ~20px)
-    this.lightSource = scene.add.image(x, y - 18, 'soft_red_glow');
+    // Subtle red aura light glow around eyes and face
+    this.lightSource = scene.add.image(x, y - 10, 'soft_red_glow');
     this.lightSource.setDisplaySize(40, 40);
     this.lightSource.setAlpha(0.15);
     this.lightSource.setDepth(1);
@@ -410,7 +410,7 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
   }
 
   showAggroAlert() {
-    const alert = this.scene.add.text(this.x, this.y - 42, '!', {
+    const alert = this.scene.add.text(this.x, this.y - 48, '!', {
       fontFamily: 'Cinzel, serif',
       fontSize: '22px',
       fontStyle: 'bold',
@@ -421,7 +421,7 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
 
     this.scene.tweens.add({
       targets: alert,
-      y: this.y - 54,
+      y: this.y - 62,
       alpha: 0,
       duration: 600,
       ease: 'Cubic.easeOut',
@@ -434,7 +434,7 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
     const barWidth = 30;
     const barHeight = 4;
     const bx = this.x - barWidth / 2;
-    const by = this.y - 39;
+    const by = this.y - 45;
 
     this.hpBarGraphics.fillStyle(0x000000, 0.8);
     this.hpBarGraphics.fillRect(bx - 1, by - 1, barWidth + 2, barHeight + 2);
@@ -447,7 +447,7 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
   updateLight() {
     if (this.lightSource) {
       this.lightSource.x = this.x;
-      this.lightSource.y = this.y - 18;
+      this.lightSource.y = this.y - 10;
     }
   }
 

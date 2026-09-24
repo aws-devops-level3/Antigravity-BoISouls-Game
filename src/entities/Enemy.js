@@ -16,17 +16,17 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
-    // Scale for authentic pixel-art character presence matching the player
-    this.baseScale = 0.72;
+    // Scale for authentic character presence matching the player (343px visual height * 0.235 = ~80.6px)
+    this.baseScale = 0.235;
     this.setScale(this.baseScale);
 
-    // Clear tint so the dark grey steel armor and vibrant red scarf render in authentic pixel art
+    // Clear tint so the dark grey steel armor and crimson blood render cleanly
     this.baseTint = 0xffffff;
     this.clearTint();
 
-    // Physics body matching knight sprite proportions
-    this.body.setSize(30, 22);
-    this.body.setOffset(26, 82);
+    // Physics body matching knight sprite proportions (centered horizontally at feet base)
+    this.body.setSize(120, 95);
+    this.body.setOffset(196, 329);
     this.setCollideWorldBounds(true);
 
     // Attributes & Stats
@@ -68,8 +68,8 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.hpBarGraphics.setDepth(2000);
     this.hpBarTimer = 0;
 
-    // Subtle red aura light glow on the floor underneath knight (depth 1, alpha 0.15, radius ~20px)
-    this.lightSource = scene.add.image(x, y + 4, 'soft_red_glow');
+    // Subtle red aura light glow on the floor underneath knight
+    this.lightSource = scene.add.image(x, y + 12, 'soft_red_glow');
     this.lightSource.setDisplaySize(40, 40);
     this.lightSource.setAlpha(0.15);
     this.lightSource.setDepth(1);
@@ -413,7 +413,7 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   showAggroAlert() {
     // Menacing red eye flash
-    const alert = this.scene.add.text(this.x, this.y - 32, '!', {
+    const alert = this.scene.add.text(this.x, this.y - 48, '!', {
       fontFamily: 'Cinzel, serif',
       fontSize: '22px',
       fontStyle: 'bold',
@@ -424,7 +424,7 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
 
     this.scene.tweens.add({
       targets: alert,
-      y: this.y - 44,
+      y: this.y - 62,
       alpha: 0,
       duration: 600,
       ease: 'Cubic.easeOut',
@@ -437,7 +437,7 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     const barWidth = 32;
     const barHeight = 4;
     const bx = this.x - barWidth / 2;
-    const by = this.y - 28;
+    const by = this.y - 44;
 
     // Dark background
     this.hpBarGraphics.fillStyle(0x000000, 0.8);
@@ -452,7 +452,7 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
   updateLight() {
     if (this.lightSource) {
       this.lightSource.x = this.x;
-      this.lightSource.y = this.y + 4;
+      this.lightSource.y = this.y + 12;
     }
   }
 
