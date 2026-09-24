@@ -65,6 +65,8 @@ export default class GameScene extends Phaser.Scene {
     const bg = this.add.image(0, 0, bgKey).setOrigin(0, 0);
     bg.setDisplaySize(worldWidth, worldHeight);
     bg.setDepth(0);
+    // Dim background layer by ~20% so foreground characters and visual effects pop with clear contrast
+    bg.setTint(0xc4c4c4);
 
     // 2. Setup Collision Groups
     this.obstacles = this.physics.add.staticGroup();

@@ -23,6 +23,32 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.setScale(this.baseScale);
     this.clearTint();
 
+    // Enhanced visibility: Outline & Rim Light / Contrast (PreFX GPU shader)
+    if (this.preFX) {
+      // 1.5-2px subtle pale silvery-steel rim outline
+      this.glowFX = this.preFX.addGlow(0xe2ecf4, 1.8, 0, false, 0.2, 8);
+      // Subtle brightness and contrast enhancement (+8%) so armor details and red tabard pop
+      this.colorMatrix = this.preFX.addColorMatrix();
+      this.colorMatrix.brightness(1.08);
+      this.colorMatrix.contrast(1.08);
+    }
+
+    // Ground Drop Shadow directly under feet for physical grounding
+    this.shadow = scene.add.image(x, y + 40, 'character_drop_shadow');
+    this.shadow.setDepth(Math.max(1, this.depth - 1));
+    this.shadow.setScale(1.15, 0.85);
+    this.shadow.setAlpha(0.72);
+
+    // Soft warm lantern aura around the player
+    if (scene.textures.exists('soft_light_glow')) {
+      this.lightSource = scene.add.image(x, y + 6, 'soft_light_glow');
+      this.lightSource.setDisplaySize(160, 160);
+      this.lightSource.setAlpha(0.20);
+      this.lightSource.setDepth(1);
+      this.lightSource.setBlendMode(Phaser.BlendModes.ADD);
+      this.lightSource.setTint(0xffd599);
+    }
+
     // Physics body adjustments for 2.5D / top-down movement at knight's feet
     this.body.setSize(28, 16);
     this.body.setOffset(42, 98);
@@ -164,6 +190,21 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       this.handleMovement(dt);
       this.handleAnimation(dt);
       this.updateWeapon(dt);
+    }
+
+    // Update ground drop shadow position and dynamics
+    if (this.shadow) {
+      this.shadow.setPosition(this.x, this.y + 40);
+      this.shadow.setDepth(Math.max(1, this.depth - 1));
+      if (this.isRolling) {
+        const rollT = Math.min(1, this.rollTimer / this.rollDuration);
+        const lift = Math.sin(rollT * Math.PI) * 0.35;
+        this.shadow.setScale(1.15 * (1 - lift * 0.4), 0.85 * (1 - lift * 0.4));
+        this.shadow.setAlpha(0.72 * (1 - lift * 0.3));
+      } else {
+        this.shadow.setScale(1.15, 0.85);
+        this.shadow.setAlpha(0.72);
+      }
     }
 
     this.updateLight();
@@ -743,14 +784,17 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
   updateLight() {
     if (this.lightSource) {
-      this.lightSource.x = this.x;
-      this.lightSource.y = this.y + 4;
+      this.lightSource.setPosition(this.x, this.y + 6);
+      this.lightSource.setDepth(Math.max(1, this.depth - 1));
     }
   }
 
   destroy(fromScene) {
     if (this.scene && this.scene.input && this.pointerDownListener) {
       this.scene.input.off('pointerdown', this.pointerDownListener);
+    }
+    if (this.shadow) {
+      this.shadow.destroy();
     }
     if (this.hammer) {
       this.hammer.destroy();

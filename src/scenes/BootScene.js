@@ -173,8 +173,28 @@ export default class BootScene extends Phaser.Scene {
     this.createOpenHatchTexture();
     this.createDoorRuneTexture();
     this.createBloodTextures();
+    this.createCharacterDropShadowTexture();
 
     this.scene.start('GameScene');
+  }
+
+  // Soft Ground Drop Shadow Texture for characters (64x32)
+  createCharacterDropShadowTexture() {
+    if (this.textures.exists('character_drop_shadow')) return;
+    const canvas = this.textures.createCanvas('character_drop_shadow', 64, 32);
+    const ctx = canvas.getContext();
+
+    const grad = ctx.createRadialGradient(32, 16, 2, 32, 16, 28);
+    grad.addColorStop(0, 'rgba(0, 0, 0, 0.76)');
+    grad.addColorStop(0.45, 'rgba(0, 0, 0, 0.46)');
+    grad.addColorStop(0.8, 'rgba(0, 0, 0, 0.14)');
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.ellipse(32, 16, 28, 12, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    canvas.refresh();
   }
 
   // Gothic Stone Tile Floor (64x64)
