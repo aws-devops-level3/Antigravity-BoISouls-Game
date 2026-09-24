@@ -46,46 +46,84 @@ export default class SoulsHUD {
     });
     this.soulContainer.add(this.soulText);
 
-    // Bottom Left Estus Flask slot
-    this.estusContainer = this.scene.add.container(48, this.scene.cameras.main.height - 56);
+    // Bottom Left Crimson Flask slot (drink_flask on [Q])
+    this.estusContainer = this.scene.add.container(54, this.scene.cameras.main.height - 56);
     this.estusContainer.setScrollFactor(0);
     this.estusContainer.setDepth(1001);
 
-    const estusBox = this.scene.add.graphics();
-    // Diamond frame
-    estusBox.lineStyle(1.5, 0x9b783e, 0.8);
-    estusBox.fillStyle(0x0e0c10, 0.75);
-    estusBox.strokeRect(-18, -18, 36, 36);
-    estusBox.fillRect(-18, -18, 36, 36);
+    this.estusBox = this.scene.add.graphics();
+    this.drawFlaskBox(false);
+    this.estusContainer.add(this.estusBox);
 
-    // Estus liquid indicator
-    estusBox.fillStyle(0xf59e0b, 0.85);
-    estusBox.fillRoundedRect(-10, -8, 20, 20, 3);
-    this.estusContainer.add(estusBox);
+    // Flask Sprite (32x32)
+    this.flaskImage = this.scene.add.image(0, -2, 'flask_red');
+    this.flaskImage.setScale(0.85);
+    this.estusContainer.add(this.flaskImage);
 
-    this.estusCountText = this.scene.add.text(8, 6, '5', {
+    // Key badge '[Q]' at top-left
+    this.keyBadge = this.scene.add.text(-18, -26, '[Q]', {
       fontFamily: 'Cinzel, serif',
-      fontSize: '13px',
+      fontSize: '11px',
+      fontStyle: 'bold',
+      color: '#e2d3af',
+      stroke: '#000000',
+      strokeThickness: 2,
+    });
+    this.estusContainer.add(this.keyBadge);
+
+    // Charges count in bottom-right
+    this.estusCountText = this.scene.add.text(6, 5, '3', {
+      fontFamily: 'Cinzel, serif',
+      fontSize: '14px',
       fontStyle: 'bold',
       color: '#fff',
       stroke: '#000000',
-      strokeThickness: 2,
+      strokeThickness: 3,
     });
     this.estusContainer.add(this.estusCountText);
 
-    this.estusLabel = this.scene.add.text(-20, 24, 'Estus Flask', {
+    this.estusLabel = this.scene.add.text(0, 25, 'Röd Flaska', {
       fontFamily: 'Cinzel, serif',
       fontSize: '11px',
-      color: '#b0a495',
+      color: '#d4af37',
       stroke: '#000000',
       strokeThickness: 2,
-    });
+    }).setOrigin(0.5, 0);
     this.estusContainer.add(this.estusLabel);
 
     // Resize listener to keep HUD anchored
     this.scene.scale.on('resize', (gameSize) => {
       this.soulContainer.setPosition(gameSize.width - 180, gameSize.height - 48);
-      this.estusContainer.setPosition(48, gameSize.height - 56);
+      this.estusContainer.setPosition(54, gameSize.height - 56);
+    });
+  }
+
+  drawFlaskBox(isEmpty = false) {
+    this.estusBox.clear();
+    // Outer shadow / dark backdrop
+    this.estusBox.fillStyle(0x070509, 0.9);
+    this.estusBox.fillRoundedRect(-20, -20, 40, 40, 6);
+
+    // Metallic frame
+    const borderColor = isEmpty ? 0x5a4444 : 0x9b783e;
+    this.estusBox.lineStyle(1.8, borderColor, 0.9);
+    this.estusBox.strokeRoundedRect(-20, -20, 40, 40, 6);
+
+    // Inner subtle gold trim
+    if (!isEmpty) {
+      this.estusBox.lineStyle(0.8, 0xef233c, 0.4);
+      this.estusBox.strokeRoundedRect(-17, -17, 34, 34, 4);
+    }
+  }
+
+  pulseFlask() {
+    if (!this.estusContainer) return;
+    this.scene.tweens.add({
+      targets: this.estusContainer,
+      scaleX: { from: 1.3, to: 1.0 },
+      scaleY: { from: 1.3, to: 1.0 },
+      duration: 350,
+      ease: 'Back.easeOut',
     });
   }
 
@@ -113,6 +151,28 @@ export default class SoulsHUD {
     // Update Souls Text dynamically
     if (player.souls !== undefined) {
       this.soulText.setText(player.souls.toLocaleString());
+    }
+
+    // Update Flask Count & visuals dynamically
+    const charges = (player.flaskCharges !== undefined) ? player.flaskCharges : 0;
+    this.estusCountText.setText(charges.toString());
+
+    if (charges <= 0) {
+      if (this.flaskImage.texture.key !== 'flask_red_empty') {
+        this.flaskImage.setTexture('flask_red_empty');
+        this.flaskImage.setAlpha(0.4);
+        this.drawFlaskBox(true);
+      }
+      this.estusCountText.setColor('#ef4444');
+      this.estusLabel.setColor('#777777');
+    } else {
+      if (this.flaskImage.texture.key !== 'flask_red') {
+        this.flaskImage.setTexture('flask_red');
+        this.flaskImage.setAlpha(1.0);
+        this.drawFlaskBox(false);
+      }
+      this.estusCountText.setColor('#ffffff');
+      this.estusLabel.setColor('#d4af37');
     }
   }
 

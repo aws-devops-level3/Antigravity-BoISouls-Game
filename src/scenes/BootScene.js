@@ -30,6 +30,9 @@ export default class BootScene extends Phaser.Scene {
     this.load.audio('chicken_squawk', encodeURI('/assets/sounds/Chicken sounds hen clucking (1).mp3'));
     this.load.audio('chicken_cluck', encodeURI('/assets/sounds/Chicken sounds hen clucking (1).mp3'));
     this.load.audio('blood_splat', '/assets/sounds/blood_splat.wav');
+    this.load.audio('flask_drink', '/assets/sounds/flask_drink.wav');
+    this.load.image('flask_red', '/assets/flask_red.png');
+    this.load.image('flask_red_empty', '/assets/flask_red_empty.png');
     // Dynamically preload all registered levels and their .dd2vtt data
     Object.values(LEVELS).forEach(lvl => {
       if (lvl.vttPath) {
@@ -80,6 +83,12 @@ export default class BootScene extends Phaser.Scene {
     }
     if (this.textures.exists('spectral_orb')) {
       this.textures.get('spectral_orb').setFilter(Phaser.Textures.FilterMode.LINEAR);
+    }
+    if (this.textures.exists('flask_red')) {
+      this.textures.get('flask_red').setFilter(Phaser.Textures.FilterMode.NEAREST);
+    }
+    if (this.textures.exists('flask_red_empty')) {
+      this.textures.get('flask_red_empty').setFilter(Phaser.Textures.FilterMode.NEAREST);
     }
 
     // Ghost floating animations

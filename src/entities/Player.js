@@ -85,6 +85,11 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     // Bobbing / walk animation timer
     this.walkCycle = 0;
 
+    // Crimson Flask attributes (Drink flask healing mechanic on [Q])
+    this.flaskCharges = 3;
+    this.maxFlaskCharges = 3;
+    this.drinkFlaskCooldownTimer = 0;
+
     // Setup input keys
     this.keys = {
       W: scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W),
@@ -93,6 +98,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       D: scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D),
       SHIFT: scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT),
       SPACE: scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
+      Q: scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Q),
       // Arrow keys backup for convenience
       UP: scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.UP),
       DOWN: scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN),
@@ -144,6 +150,11 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       this.attackCooldownTimer -= dt;
     }
 
+    // Update flask drink cooldown timer
+    if (this.drinkFlaskCooldownTimer > 0) {
+      this.drinkFlaskCooldownTimer -= dt;
+    }
+
     if (this.isRolling) {
       this.updateRoll(dt);
     } else if (this.isAttacking) {
@@ -160,6 +171,11 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
   handleInput(dt) {
     if (this.health <= 0) return;
+
+    // Check for Drink Flask trigger (Q)
+    if (Phaser.Input.Keyboard.JustDown(this.keys.Q)) {
+      this.drink_flask();
+    }
 
     // Check for Dodge Roll trigger (SPACE)
     if (Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
@@ -467,6 +483,132 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     const targetAngle = Phaser.Math.Angle.Between(this.x, this.y, targetX, targetY);
     let diff = Phaser.Math.Angle.Wrap(targetAngle - this.attackAngle);
     return Math.abs(diff) <= this.attackArc / 2;
+  }
+
+  drink_flask() {
+    // Cannot drink if dead or currently rolling
+    if (this.health <= 0 || this.isDead || this.isRolling) {
+      return false;
+    }
+
+    // Check if player has flask charges remaining
+    if (this.flaskCharges <= 0) {
+      this.showFloatingText('Tom flaska!', 0xef4444);
+      return false;
+    }
+
+    // Cooldown check so player can't accidentally multi-click
+    if (this.drinkFlaskCooldownTimer > 0) {
+      return false;
+    }
+    this.drinkFlaskCooldownTimer = 0.55;
+
+    // Deduct 1 charge
+    this.flaskCharges--;
+
+    // Heal 40% of total HP
+    const healAmount = Math.round(this.maxHealth * 0.40);
+    const prevHealth = this.health;
+    this.health = Math.min(this.maxHealth, this.health + healAmount);
+    const actualHealed = this.health - prevHealth;
+
+    // Trigger visual & sound effects
+    this.triggerDrinkFlaskEffects(actualHealed);
+
+    // Pulse HUD flask slot
+    if (this.scene && this.scene.hud && typeof this.scene.hud.pulseFlask === 'function') {
+      this.scene.hud.pulseFlask();
+    }
+
+    return true;
+  }
+
+  drinkFlask() {
+    return this.drink_flask();
+  }
+
+  showFloatingText(msg, color = 0x4ade80) {
+    if (!this.scene) return;
+    const colorHex = '#' + color.toString(16).padStart(6, '0');
+    const txt = this.scene.add.text(this.x, this.y - 28, msg, {
+      fontFamily: 'Cinzel, serif',
+      fontSize: '16px',
+      fontStyle: 'bold',
+      color: colorHex,
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5);
+    txt.setDepth(this.depth + 100);
+
+    this.scene.tweens.add({
+      targets: txt,
+      y: txt.y - 32,
+      alpha: { from: 1, to: 0 },
+      duration: 1100,
+      ease: 'Cubic.easeOut',
+      onComplete: () => txt.destroy(),
+    });
+  }
+
+  triggerDrinkFlaskEffects(healedAmount) {
+    if (!this.scene) return;
+
+    // 1. Play drinking sound
+    if (this.scene.sound) {
+      this.scene.sound.play('flask_drink', { volume: 0.95 });
+    }
+
+    // 2. Floating heal numbers above knight
+    this.showFloatingText(`+${healedAmount} HP`, 0x4ade80);
+
+    // 3. Knight healing aura flash
+    this.setTint(0xff6b81);
+    this.scene.time.delayedCall(150, () => {
+      if (this.health > 0) this.setTint(0xffd166);
+    });
+    this.scene.time.delayedCall(320, () => {
+      if (this.health > 0) this.clearTint();
+    });
+
+    // 4. Little red flask sprite displayed in front of the knight
+    const flaskX = this.x + (this.flipX ? -14 : 14);
+    const flaskY = this.y - 12;
+    const flaskImg = this.scene.add.image(flaskX, flaskY, 'flask_red');
+    flaskImg.setDepth(this.depth + 2);
+    flaskImg.setScale(0.75);
+    flaskImg.setAngle(this.flipX ? 25 : -25);
+
+    this.scene.tweens.add({
+      targets: flaskImg,
+      y: flaskY - 14,
+      angle: this.flipX ? 55 : -55,
+      alpha: { from: 1, to: 0 },
+      duration: 550,
+      ease: 'Quad.easeOut',
+      onComplete: () => flaskImg.destroy(),
+    });
+
+    // 5. Rising restorative healing particles
+    const particleColors = [0xef233c, 0xffd166, 0x4ade80, 0xffffff];
+    for (let i = 0; i < 14; i++) {
+      const pColor = particleColors[i % particleColors.length];
+      const offsetX = Phaser.Math.Between(-14, 14);
+      const offsetY = Phaser.Math.Between(4, 20);
+      const p = this.scene.add.circle(this.x + offsetX, this.y + offsetY, Phaser.Math.Between(2, 4), pColor, 0.9);
+      p.setDepth(this.depth + 1);
+
+      this.scene.tweens.add({
+        targets: p,
+        y: p.y - Phaser.Math.Between(30, 55),
+        x: p.x + Phaser.Math.Between(-10, 10),
+        alpha: 0,
+        scale: 0.2,
+        duration: Phaser.Math.Between(450, 750),
+        delay: Phaser.Math.Between(0, 150),
+        ease: 'Cubic.easeOut',
+        onComplete: () => p.destroy(),
+      });
+    }
   }
 
   takeDamage(amount) {

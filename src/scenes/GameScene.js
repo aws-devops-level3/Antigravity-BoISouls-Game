@@ -28,6 +28,7 @@ export default class GameScene extends Phaser.Scene {
     this.initialMaxHealth = (data && data.maxHealth !== undefined) ? data.maxHealth : 100;
     this.initialStamina = (data && data.stamina !== undefined) ? data.stamina : 100;
     this.initialMaxStamina = (data && data.maxStamina !== undefined) ? data.maxStamina : 100;
+    this.initialFlaskCharges = (data && data.flaskCharges !== undefined) ? data.flaskCharges : 3;
 
     this.floor = data && data.floor ? data.floor : (this.currentMapKey === 'SoulsChapel' ? 1 : 2);
   }
@@ -96,6 +97,7 @@ export default class GameScene extends Phaser.Scene {
     this.player.maxHealth = this.initialMaxHealth;
     this.player.stamina = this.initialStamina;
     this.player.maxStamina = this.initialMaxStamina;
+    this.player.flaskCharges = this.initialFlaskCharges;
 
     // 7. Spawn Enemies & Neutral NPCs
     this.enemies = this.add.group();
@@ -280,6 +282,7 @@ export default class GameScene extends Phaser.Scene {
           souls: this.player.souls,
           stamina: this.player.stamina,
           maxStamina: this.player.maxStamina,
+          flaskCharges: this.player.flaskCharges,
         });
       }
     });
@@ -861,6 +864,7 @@ export default class GameScene extends Phaser.Scene {
           maxHealth: this.player.maxHealth,
           stamina: this.player.stamina,
           maxStamina: this.player.maxStamina,
+          flaskCharges: this.player.flaskCharges,
         });
       }
     });
@@ -1024,6 +1028,7 @@ export default class GameScene extends Phaser.Scene {
             maxHealth: 100,
             stamina: 100,
             maxStamina: 100,
+            flaskCharges: 3,
           });
         }
       });
