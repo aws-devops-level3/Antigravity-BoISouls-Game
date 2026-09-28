@@ -54,6 +54,18 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.body.setOffset(42, 98);
     this.setCollideWorldBounds(true);
 
+    // Disable automatic arcade velocity integration so our custom AABB resolution controls movement
+    this.body.moves = false;
+
+    // AABB Collision Box properties (centered at the knight's feet)
+    this.colliderWidth = 26;
+    this.colliderHeight = 18;
+    this.colliderOffsetY = 24; // Y-offset from sprite center down to the feet
+
+    // Internal velocity components for collision-checked movement
+    this.vx = 0;
+    this.vy = 0;
+
     // Play default idle animation (Rad 1, frames 0 to 9)
     this.play('player_idle');
 
@@ -134,6 +146,12 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     // Listen to mouse pointer click for sword attack
     this.pointerDownListener = (pointer) => {
+      // Ignorera attack endast om debug-läget är aktivt och användaren ritar hinder
+      if (this.scene && this.scene.collisionManager && this.scene.collisionManager.debugColliders) {
+        if (pointer.event && pointer.event.shiftKey) return;
+        if (this.scene.collisionManager.isDragging) return;
+      }
+
       if (pointer.leftButtonDown() || pointer.button === 0) {
         this.tryAttack(pointer);
       }
@@ -279,10 +297,8 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     }
 
     // Initial roll velocity impulse
-    this.body.setVelocity(
-      this.rollDirection.x * this.rollSpeed,
-      this.rollDirection.y * this.rollSpeed
-    );
+    this.vx = this.rollDirection.x * this.rollSpeed;
+    this.vy = this.rollDirection.y * this.rollSpeed;
 
     // Initial roll dust puff
     this.dustEmitter.emitParticleAt(this.x, this.y + 16, 5);
@@ -303,10 +319,9 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       Math.pow(progress, 1.3)
     );
 
-    this.body.setVelocity(
-      this.rollDirection.x * currentRollSpeed,
-      this.rollDirection.y * currentRollSpeed
-    );
+    const dx = this.rollDirection.x * currentRollSpeed * dt;
+    const dy = this.rollDirection.y * currentRollSpeed * dt;
+    this.moveWithCollision(dx, dy);
 
     // 360-degree somersault spin in roll direction
     const spinDir = this.rollDirection.x < 0 ? -1 : 1;
@@ -333,10 +348,8 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       this.play('player_idle', true);
 
       // Decelerate smoothly
-      this.body.setVelocity(
-        this.rollDirection.x * this.baseSpeed * 0.5,
-        this.rollDirection.y * this.baseSpeed * 0.5
-      );
+      this.vx = this.rollDirection.x * this.baseSpeed * 0.5;
+      this.vy = this.rollDirection.y * this.baseSpeed * 0.5;
     }
   }
 
@@ -403,10 +416,8 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     // Initial forward lunge impulse
     const lungeSpeed = 160;
-    this.body.setVelocity(
-      Math.cos(this.attackAngle) * lungeSpeed,
-      Math.sin(this.attackAngle) * lungeSpeed
-    );
+    this.vx = Math.cos(this.attackAngle) * lungeSpeed;
+    this.vy = Math.sin(this.attackAngle) * lungeSpeed;
 
     // Dust at feet from forceful footwork
     this.dustEmitter.emitParticleAt(this.x, this.y + 16, 3);
@@ -489,10 +500,9 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     // Decelerate lunge smoothly
     const currentLunge = Phaser.Math.Linear(150, 0, Math.pow(progress, 1.4));
-    this.body.setVelocity(
-      Math.cos(this.attackAngle) * currentLunge,
-      Math.sin(this.attackAngle) * currentLunge
-    );
+    const dx = Math.cos(this.attackAngle) * currentLunge * dt;
+    const dy = Math.sin(this.attackAngle) * currentLunge * dt;
+    this.moveWithCollision(dx, dy);
 
     // Reach arc indicator sweeps forward as hammer is brought overhead down (progress ~0.60)
     if (progress >= 0.60 && !this.hasSpawnedReachIndicator) {
@@ -694,44 +704,102 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.souls += amount;
   }
 
+  /**
+   * Returnerar spelarens bounding box (AABB) vid fötterna.
+   * { x, y, width, height }
+   */
+  getPlayerBounds(x = this.x, y = this.y) {
+    const w = this.colliderWidth || 26;
+    const h = this.colliderHeight || 18;
+    const oy = this.colliderOffsetY !== undefined ? this.colliderOffsetY : 24;
+    return {
+      x: x - w / 2,
+      y: y - h / 2 + oy,
+      width: w,
+      height: h,
+    };
+  }
+
+  /**
+   * Utför förflyttning med AABB-kollisionskoll innan spelarens position uppdateras med dx/dy.
+   * Om det blir en kollision stoppas rörelsen i den axeln (vilket möjliggör mjuk väggglidning).
+   *
+   * @param {number} dx Önskad förflyttning i X-led
+   * @param {number} dy Önskad förflyttning i Y-led
+   */
+  moveWithCollision(dx, dy) {
+    if (dx === 0 && dy === 0) {
+      if (this.body) this.body.reset(this.x, this.y);
+      return;
+    }
+
+    // Hämta spelarens aktuella bounding box
+    const currentBounds = this.getPlayerBounds(this.x, this.y);
+
+    // Om scenen har CollisionManager körs axelseparerad kollisionskoll
+    if (this.scene && this.scene.collisionManager) {
+      const { dx: resolvedDx, dy: resolvedDy, collidedX, collidedY } =
+        this.scene.collisionManager.resolveMovement(currentBounds, dx, dy);
+
+      // Om rörelsen stoppades på en axel, nollställ hastigheten på den axeln
+      if (collidedX) this.vx = 0;
+      if (collidedY) this.vy = 0;
+
+      // Uppdatera spelarens faktiska position med den godkända rörelsen
+      this.x += resolvedDx;
+      this.y += resolvedDy;
+    } else {
+      this.x += dx;
+      this.y += dy;
+    }
+
+    // Synkronisera Arcade Physics-kroppen med den nya positionen
+    if (this.body) {
+      this.body.reset(this.x, this.y);
+    }
+  }
+
   handleMovement(dt) {
     if (this.health <= 0) return;
+
+    let targetVx = 0;
+    let targetVy = 0;
+
     if (this.isMoving) {
-      // Normalize vector so diagonal movement isn't 1.41x faster!
+      // Normalisera rörelsevektorn så diagonal förflyttning inte går 1.41x snabbare
       this.moveVector.normalize();
 
-      // Set velocity smoothly
-      const targetVx = this.moveVector.x * this.currentSpeed;
-      const targetVy = this.moveVector.y * this.currentSpeed;
+      targetVx = this.moveVector.x * this.currentSpeed;
+      targetVy = this.moveVector.y * this.currentSpeed;
 
-      this.body.setVelocity(
-        Phaser.Math.Linear(this.body.velocity.x, targetVx, 0.25),
-        Phaser.Math.Linear(this.body.velocity.y, targetVy, 0.25)
-      );
-
-      // Facing orientation: flip sprite horizontally when moving left vs right
+      // Vänd spriten horisontellt vid rörelse vänster / höger
       if (this.moveVector.x < -0.1) {
         this.setFlipX(true);
       } else if (this.moveVector.x > 0.1) {
         this.setFlipX(false);
       }
 
-      // Footstep dust puff
+      // Fotstegsdamm
       this.dustTimer += dt;
       const dustInterval = this.isSprinting ? 0.12 : 0.22;
       if (this.dustTimer >= dustInterval) {
         this.dustTimer = 0;
         this.dustEmitter.emitParticleAt(this.x, this.y + 16, 2);
       }
-    } else {
-      // Natural deceleration to stop with snappy zero threshold
-      const nextVx = Phaser.Math.Linear(this.body.velocity.x, 0, 0.25);
-      const nextVy = Phaser.Math.Linear(this.body.velocity.y, 0, 0.25);
-      this.body.setVelocity(
-        Math.abs(nextVx) < 1 ? 0 : nextVx,
-        Math.abs(nextVy) < 1 ? 0 : nextVy
-      );
     }
+
+    // Mjuk acceleration och snabb inbromsning
+    this.vx = Phaser.Math.Linear(this.vx || 0, targetVx, 0.25);
+    this.vy = Phaser.Math.Linear(this.vy || 0, targetVy, 0.25);
+    if (Math.abs(this.vx) < 1 && targetVx === 0) this.vx = 0;
+    if (Math.abs(this.vy) < 1 && targetVy === 0) this.vy = 0;
+
+    // Beräkna önskad förflyttning i pixlar denna bildruta (dx, dy)
+    const dx = this.vx * dt;
+    const dy = this.vy * dt;
+
+    // KOLLISIONSLOGIK: Kontrollera dx/dy mot alla hinder innan positionen uppdateras!
+    this.moveWithCollision(dx, dy);
   }
 
   handleAnimation(dt) {

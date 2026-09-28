@@ -9,6 +9,8 @@ import SoulsHUD from '../ui/SoulsHUD.js';
 import level1Data from '../data/SoulsLevel1.json';
 import DD2VTTParser from '../utils/DD2VTTParser.js';
 import { getMapConfig, MAP_CONFIGS } from '../data/MapConfig.js';
+import CollisionManager from '../utils/CollisionManager.js';
+import { MAP_OBSTACLES, obstacles as defaultObstacles } from '../data/obstacles.js';
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
@@ -16,7 +18,16 @@ export default class GameScene extends Phaser.Scene {
   }
 
   init(data) {
-    this.currentMapKey = (data && data.mapKey) ? data.mapKey : 'SoulsChapel';
+    let defaultMap = 'SoulsChapel';
+    if (typeof window !== 'undefined' && window.location) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlMap = urlParams.get('map');
+      if (urlMap && (MAP_CONFIGS[urlMap] || MAP_OBSTACLES[urlMap])) {
+        defaultMap = urlMap;
+      }
+    }
+
+    this.currentMapKey = (data && data.mapKey) ? data.mapKey : defaultMap;
     this.mapConfig = getMapConfig(this.currentMapKey);
     this.spawnOverride = (data && data.spawnX !== undefined && data.spawnY !== undefined)
       ? { x: data.spawnX, y: data.spawnY }
@@ -31,6 +42,7 @@ export default class GameScene extends Phaser.Scene {
     this.initialFlaskCharges = (data && data.flaskCharges !== undefined) ? data.flaskCharges : 3;
 
     this.floor = data && data.floor ? data.floor : (this.currentMapKey === 'SoulsChapel' ? 1 : 2);
+    this.monstersActive = (data && data.monstersActive !== undefined) ? data.monstersActive : true;
   }
 
   create() {
@@ -71,6 +83,17 @@ export default class GameScene extends Phaser.Scene {
     // 2. Setup Collision Groups
     this.obstacles = this.physics.add.staticGroup();
 
+    // 2b. Setup AABB Collision Manager (Datalista med rektangulära hinder, axelseparation, debugColliders & editor)
+    const activeMapObstacles = (MAP_OBSTACLES && MAP_OBSTACLES[this.currentMapKey])
+      ? MAP_OBSTACLES[this.currentMapKey]
+      : defaultObstacles;
+    this.collisionManager = new CollisionManager(this, activeMapObstacles, {
+      x: 0,
+      y: 0,
+      width: worldWidth,
+      height: worldHeight,
+    });
+
     // 3. Build Collision Boundaries matching the active floor & DD2VTT walls
     this.buildObstacles(worldWidth, worldHeight);
 
@@ -107,6 +130,27 @@ export default class GameScene extends Phaser.Scene {
     this.enemyProjectiles = this.physics.add.group({ runChildUpdate: true });
     this.spawnEnemies();
     this.spawnChickens();
+
+    // Globala kontroller och snabbtangenter för att deaktivera/aktivera monster
+    window.gameScene = this;
+    window.toggleMonsters = () => this.toggleMonsters();
+    window.disableMonsters = () => this.setMonstersActive(false);
+    window.enableMonsters = () => this.setMonstersActive(true);
+
+    if (!this.monstersActive) {
+      this.setMonstersActive(false);
+    }
+
+    // Tangent [M] för att slå av/på monster
+    this.input.keyboard.on('keydown-M', () => {
+      this.toggleMonsters();
+    });
+
+    // Snabbväxling mellan kartor med siffrorna 1, 2, 3
+    window.loadMap = (mapKey) => this.switchMap(mapKey);
+    this.input.keyboard.on('keydown-ONE', () => this.switchMap('SoulsChapel'));
+    this.input.keyboard.on('keydown-TWO', () => this.switchMap('CemeterySouls'));
+    this.input.keyboard.on('keydown-THREE', () => this.switchMap('SoulsBossRoom1'));
 
     // 8. Physics Collisions
     this.physics.add.collider(this.player, this.obstacles);
@@ -285,6 +329,7 @@ export default class GameScene extends Phaser.Scene {
           stamina: this.player.stamina,
           maxStamina: this.player.maxStamina,
           flaskCharges: this.player.flaskCharges,
+          monstersActive: this.monstersActive,
         });
       }
     });
@@ -1031,6 +1076,7 @@ export default class GameScene extends Phaser.Scene {
             stamina: 100,
             maxStamina: 100,
             flaskCharges: 3,
+            monstersActive: this.monstersActive,
           });
         }
       });
@@ -1043,10 +1089,16 @@ export default class GameScene extends Phaser.Scene {
         this.handlePlayerDeath();
       }
 
+      // 1. Spelarens uppdatering: Här körs dx/dy beräkning & AABB-kollisionskoll innan positionen ändras
       if (!this.isTransitioning && !this.isPlayerDead) {
         this.player.update(time, delta);
       }
       this.player.setDepth(this.player.y + 10);
+
+      // 2. Debug-rendering av AABB-kollisionsrutor (Ritas som halvgenomskinliga röda rektanglar vid debugColliders = true)
+      if (this.collisionManager) {
+        this.collisionManager.renderDebug(this.player);
+      }
 
       // Check door proximity & handle [E] key interaction
       if (!this.isTransitioning && !this.isPlayerDead && this.doorTriggers && this.doorTriggers.length > 0) {
@@ -1074,10 +1126,12 @@ export default class GameScene extends Phaser.Scene {
         }
       }
 
-      // Update all active enemies
-      this.enemies.getChildren().forEach(enemy => {
-        enemy.update(time, delta, this.player);
-      });
+      // Update all active enemies if monsters are enabled
+      if (this.monstersActive) {
+        this.enemies.getChildren().forEach(enemy => {
+          enemy.update(time, delta, this.player);
+        });
+      }
 
       // Update all active chickens
       if (this.chickens) {
@@ -1124,5 +1178,92 @@ export default class GameScene extends Phaser.Scene {
         this.hud.update(this.player);
       }
     }
+  }
+
+  /**
+   * Aktiverar eller deaktiverar alla monster på kartan.
+   * Vid deaktivering pausas deras AI, animationer och fysikkroppar så att de blir ofarliga.
+   *
+   * @param {boolean} active
+   */
+  setMonstersActive(active) {
+    this.monstersActive = active;
+
+    this.enemies.getChildren().forEach(enemy => {
+      if (enemy.state === 'DEAD') return;
+
+      if (!active) {
+        // 1. Stanna rörelse och inaktivera kollisionsskada mot spelaren
+        if (enemy.body) {
+          enemy.body.setVelocity(0, 0);
+          enemy.body.enable = false;
+        }
+
+        // 2. Rensa pågående telegraferingsgrafik och HP-mätare
+        if (enemy.telegraphGraphics) enemy.telegraphGraphics.clear();
+        if (enemy.hpBarGraphics) enemy.hpBarGraphics.clear();
+        if (enemy.bowTelegraphLine) enemy.bowTelegraphLine.clear();
+
+        // 3. Pausa animationer och sätt halvgenomskinlighet som visuell signal
+        if (enemy.anims) enemy.anims.pause();
+        enemy.setAlpha(0.32);
+
+        // 4. Släck eventuell aura under monstret
+        if (enemy.lightSource) enemy.lightSource.setVisible(false);
+      } else {
+        // Återaktivera monstret till normalläge
+        if (enemy.body) {
+          enemy.body.enable = true;
+        }
+        if (enemy.anims) enemy.anims.resume();
+        enemy.setAlpha(1.0);
+        if (enemy.lightSource) enemy.lightSource.setVisible(true);
+      }
+    });
+
+    // Rensa eventuella flygande fiendeprojektiler (t.ex. pilar) om monstren deaktiveras
+    if (!active && this.enemyProjectiles) {
+      this.enemyProjectiles.clear(true, true);
+    }
+
+    const msg = this.monstersActive
+      ? '👾 Monster: AKTIVERADE'
+      : '💤 Monster: DEAKTIVERADE (Pausade & ofarliga)';
+    const color = this.monstersActive ? '#4ade80' : '#ffa502';
+    this.showToast(msg, color);
+
+    // Uppdatera informationen i debug-rutan om CollisionManager finns
+    if (this.collisionManager && typeof this.collisionManager.updateUILabel === 'function') {
+      this.collisionManager.updateUILabel();
+    }
+  }
+
+  /**
+   * Växlar monstrens status mellan aktiverad och deaktiverad.
+   */
+  toggleMonsters() {
+    this.setMonstersActive(!this.monstersActive);
+  }
+
+  /**
+   * Byter direkt till en annan karta (t.ex. SoulsBossRoom1) för snabb testning.
+   * @param {string} mapKey
+   */
+  switchMap(mapKey) {
+    if (this.currentMapKey === mapKey) return;
+    const cfg = getMapConfig(mapKey);
+    const spawn = cfg && cfg.defaultSpawn ? cfg.defaultSpawn : { x: 300, y: 300 };
+    this.scene.restart({
+      mapKey,
+      spawnX: spawn.x,
+      spawnY: spawn.y,
+      health: this.player ? this.player.health : 100,
+      maxHealth: this.player ? this.player.maxHealth : 100,
+      souls: this.player ? this.player.souls : 2450,
+      stamina: this.player ? this.player.stamina : 100,
+      maxStamina: this.player ? this.player.maxStamina : 100,
+      flaskCharges: this.player ? this.player.flaskCharges : 3,
+      monstersActive: this.monstersActive,
+    });
   }
 }
