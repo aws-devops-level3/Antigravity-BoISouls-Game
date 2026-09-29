@@ -94,6 +94,52 @@ export default class SoulsHUD {
     }).setOrigin(0.5, 0);
     this.estusContainer.add(this.estusLabel);
 
+    // Active Weapon slot positioned next to the Vial of Blood
+    this.weaponContainer = this.scene.add.container(175, 129);
+    this.weaponContainer.setScrollFactor(0);
+    this.weaponContainer.setDepth(1001);
+
+    this.weaponBox = this.scene.add.graphics();
+    this.drawWeaponBox(0xc99e3a);
+    this.weaponContainer.add(this.weaponBox);
+
+    this.weaponImage = this.scene.add.image(0, -2, 'hammer');
+    this.weaponImage.setScale(1.9);
+    this.weaponContainer.add(this.weaponImage);
+
+    // Keycap badge '[F1-F5]'
+    this.weaponKeyBadge = this.scene.add.text(-36, -34, '[F1-F5]', {
+      fontFamily: 'Cinzel, serif',
+      fontSize: '11px',
+      fontStyle: 'bold',
+      color: '#f5efe6',
+      stroke: '#000000',
+      strokeThickness: 3,
+    });
+    this.weaponContainer.add(this.weaponKeyBadge);
+
+    // Damage indicator
+    this.weaponDmgText = this.scene.add.text(36, 18, '48 DMG', {
+      fontFamily: 'Cinzel, serif',
+      fontSize: '11px',
+      fontStyle: 'bold',
+      color: '#f59e0b',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(1, 0);
+    this.weaponContainer.add(this.weaponDmgText);
+
+    // Weapon title underneath
+    this.weaponLabel = this.scene.add.text(0, 50, 'WARHAMMER', {
+      fontFamily: 'Cinzel, serif',
+      fontSize: '11px',
+      fontStyle: 'bold',
+      color: '#e2d3af',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5, 0);
+    this.weaponContainer.add(this.weaponLabel);
+
     // Audio status & toggle button in top right
     this.createAudioToggle();
 
@@ -202,6 +248,30 @@ export default class SoulsHUD {
     });
   }
 
+  drawWeaponBox(color = 0xc99e3a) {
+    if (!this.weaponBox) return;
+    this.weaponBox.clear();
+    this.weaponBox.fillStyle(0x0e0b12, 0.90);
+    this.weaponBox.fillRoundedRect(-43, -43, 86, 86, 10);
+
+    this.weaponBox.lineStyle(2.4, color, 0.95);
+    this.weaponBox.strokeRoundedRect(-43, -43, 86, 86, 10);
+
+    this.weaponBox.lineStyle(1.0, color, 0.35);
+    this.weaponBox.strokeRoundedRect(-38, -38, 76, 76, 8);
+  }
+
+  pulseWeapon() {
+    if (!this.weaponContainer) return;
+    this.scene.tweens.add({
+      targets: this.weaponContainer,
+      scaleX: { from: 1.25, to: 1.0 },
+      scaleY: { from: 1.25, to: 1.0 },
+      duration: 300,
+      ease: 'Back.easeOut',
+    });
+  }
+
   update(player) {
     this.graphics.clear();
 
@@ -249,6 +319,32 @@ export default class SoulsHUD {
       this.estusCountText.setColor('#ffffff');
       this.estusLabel.setColor('#d4af37');
     }
+
+    // Update active weapon display
+    if (player.currentWeapon && this.lastWeaponId !== player.currentWeapon.id) {
+      this.lastWeaponId = player.currentWeapon.id;
+      const w = player.currentWeapon;
+      if (this.weaponImage) {
+        this.weaponImage.setTexture(w.sprite);
+        let scale = 1.7;
+        if (w.id === 'hammer' || w.id === 'warhammer') scale = 1.9;
+        else if (w.id === 'greatsword' || w.id === 'scimitar' || w.id === 'dagger') scale = 0.52;
+        this.weaponImage.setScale(scale);
+      }
+      if (this.weaponDmgText) {
+        if (w.statusEffect === 'burn') {
+          this.weaponDmgText.setText(`${w.damage}+🔥`);
+        } else {
+          this.weaponDmgText.setText(`${w.damage} DMG`);
+        }
+        const hex = '#' + (w.slashColor || 0xf59e0b).toString(16).padStart(6, '0');
+        this.weaponDmgText.setColor(hex);
+      }
+      if (this.weaponLabel) {
+        this.weaponLabel.setText(w.name.toUpperCase());
+      }
+      this.drawWeaponBox(w.slashColor || 0xc99e3a);
+    }
   }
 
   drawSoulsBar(x, y, maxWidth, height, ratio, darkColor, lightColor) {
@@ -285,5 +381,8 @@ export default class SoulsHUD {
     this.graphics.destroy();
     this.soulContainer.destroy();
     this.estusContainer.destroy();
+    if (this.weaponContainer) {
+      this.weaponContainer.destroy();
+    }
   }
 }

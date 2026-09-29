@@ -7,7 +7,9 @@ export const BossState = {
   TELEGRAPH_NORMAL: 'TELEGRAPH_NORMAL',
   ATTACK_NORMAL: 'ATTACK_NORMAL',
   TELEGRAPH_SCREAM: 'TELEGRAPH_SCREAM',
-  TELEGRAPH_TELEPORT: 'TELEGRAPH_TELEPORT',
+  CASTING_WRAITH_ORB: 'CASTING_WRAITH_ORB',
+  TELEGRAPH_TELEPORT_SLAM: 'TELEGRAPH_TELEPORT_SLAM',
+  CHANNELING_SLAM: 'CHANNELING_SLAM',
   STAGGER: 'STAGGER',
   DEAD: 'DEAD',
 };
@@ -80,7 +82,7 @@ export class SpectralOrb extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
-  destroyOrb(spawnParticles = true) {
+  destroyOrb(spawnParticles = false) {
     this.hasHit = true;
     if (this.trail) {
       this.trail.stop();
@@ -89,33 +91,267 @@ export class SpectralOrb extends Phaser.Physics.Arcade.Sprite {
       });
     }
 
-    if (spawnParticles && this.scene) {
-      const burst = this.scene.add.particles(this.x, this.y, 'ember_spark', {
-        speed: { min: 50, max: 150 },
-        scale: { start: 0.8, end: 0 },
-        alpha: { start: 0.9, end: 0 },
-        tint: [0xa5f3fc, 0x67e8f9, 0xffffff],
-        lifespan: 250,
-        quantity: 8,
-        blendMode: 'ADD',
+    if (this.scene) {
+      const flash = this.scene.add.circle(this.x, this.y, 14, 0x38bdf8, 0.7);
+      this.scene.tweens.add({
+        targets: flash,
+        radius: 22,
+        alpha: 0,
+        duration: 180,
+        ease: 'Quad.easeOut',
+        onComplete: () => flash.destroy(),
       });
-      this.scene.time.delayedCall(260, () => burst.destroy());
     }
 
     this.destroy();
   }
 }
 
+/**
+ * ScreamWave - Eterisk sonisk våg som skär framåt mot spelaren
+ * Spelas upp i sekvens vid bossens skrikattack.
+ */
+export class ScreamWave extends Phaser.Physics.Arcade.Sprite {
+  constructor(scene, x, y, angle, damage = 18, waveNumber = 1) {
+    super(scene, x, y, 'reach_arc');
+
+    scene.add.existing(this);
+    scene.physics.add.existing(this);
+
+    this.scene = scene;
+    this.damage = damage;
+    this.speed = 360;
+    this.maxLifespan = 1.6;
+    this.lifeTimer = 0;
+    this.hasHit = false;
+
+    this.setRotation(angle);
+    this.setOrigin(0.2, 0.5);
+    this.setScale(0.7, 0.7);
+    this.setAlpha(0.92);
+
+    // Eteriska skriktoner: Cyan -> Azurblå -> Djupviolett
+    const waveTints = [0x38bdf8, 0x818cf8, 0xc084fc];
+    this.setTint(waveTints[(waveNumber - 1) % waveTints.length]);
+
+    this.body.setSize(52, 52);
+    this.body.setVelocity(
+      Math.cos(angle) * this.speed,
+      Math.sin(angle) * this.speed
+    );
+
+    this.setDepth(y + 25);
+
+    // Vågen expanderar kraftigt i bredd när den susar framåt
+    scene.tweens.add({
+      targets: this,
+      scaleX: 1.6,
+      scaleY: 1.6,
+      alpha: 0.15,
+      duration: this.maxLifespan * 1000,
+      ease: 'Quad.easeOut',
+      onComplete: () => {
+        this.destroy();
+      },
+    });
+  }
+
+  update(time, delta) {
+    if (!this.active) return;
+    const dt = delta / 1000;
+    this.lifeTimer += dt;
+    this.setDepth(this.y + 25);
+
+    // Proximitetskontroll mot spelaren
+    if (this.scene && this.scene.player && !this.hasHit) {
+      const dist = Phaser.Math.Distance.Between(this.x, this.y, this.scene.player.x, this.scene.player.y);
+      if (dist <= 38) {
+        this.onHitPlayer(this.scene.player);
+        return;
+      }
+    }
+
+    if (this.lifeTimer >= this.maxLifespan) {
+      this.destroy();
+    }
+  }
+
+  onHitObstacle() {
+    this.destroy();
+  }
+
+  onHitPlayer(player) {
+    if (this.hasHit || !this.active) return;
+    if (player.isInvulnerable) {
+      return; // Undviks med dash (i-frames)
+    }
+    this.hasHit = true;
+    player.takeDamage(this.damage);
+    this.destroy();
+  }
+}
+
+/**
+ * WraithHazardOrb - Placerad fara som landar i arenan och pulserar ut projektiler
+ */
+export class WraithHazardOrb extends Phaser.Physics.Arcade.Sprite {
+  constructor(scene, startX, startY, targetX, targetY, boss) {
+    super(scene, startX, startY, 'spectral_orb');
+
+    this.scene = scene;
+    this.boss = boss;
+    this.targetX = targetX;
+    this.targetY = targetY;
+    this.pulseCount = 0;
+    this.maxPulses = 4;
+    this.pulseTimer = null;
+    this.hoverTween = null;
+
+    scene.add.existing(this);
+    scene.physics.add.existing(this);
+
+    this.setScale(1.8);
+    this.setTint(0x9333ea); // Mörk violett vålnadskraft
+    this.setAlpha(0.95);
+    this.setBlendMode(Phaser.BlendModes.ADD);
+    this.setDepth(targetY + 10);
+
+    if (this.body) {
+      this.body.setAllowGravity(false);
+      this.body.setImmovable(true);
+      this.body.setSize(26, 26);
+    }
+
+    // Kastas i en båge från bossen till landningsplatsen
+    scene.tweens.add({
+      targets: this,
+      x: targetX,
+      y: targetY,
+      scaleX: 2.2,
+      scaleY: 2.2,
+      duration: 650,
+      ease: 'Quad.easeOut',
+      onComplete: () => {
+        this.onLand();
+      },
+    });
+  }
+
+  onLand() {
+    if (!this.active || !this.scene) return;
+
+    // Landningsring på golvet
+    const landingRing = this.scene.add.circle(this.x, this.y, 8, 0xa855f7, 0.65);
+    landingRing.setDepth(this.depth - 1);
+    this.scene.tweens.add({
+      targets: landingRing,
+      radius: 50,
+      alpha: 0,
+      duration: 500,
+      ease: 'Cubic.easeOut',
+      onComplete: () => landingRing.destroy(),
+    });
+
+    // Svallande svävning över marken
+    this.hoverTween = this.scene.tweens.add({
+      targets: this,
+      y: this.targetY - 10,
+      duration: 600,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+
+    // Starta pulseringar
+    this.scheduleNextPulse(450);
+  }
+
+  scheduleNextPulse(delay) {
+    if (!this.active || !this.scene || !this.scene.time) return;
+
+    this.pulseTimer = this.scene.time.delayedCall(delay, () => {
+      if (!this.active || !this.scene) return;
+      this.emitPulse();
+    });
+  }
+
+  emitPulse() {
+    this.pulseCount++;
+
+    // Visuell expansionschockvåg
+    const pulseRing = this.scene.add.circle(this.x, this.y, 14, 0x38bdf8, 0.7);
+    pulseRing.setDepth(this.depth - 1);
+    this.scene.tweens.add({
+      targets: pulseRing,
+      radius: 70,
+      alpha: 0,
+      duration: 450,
+      ease: 'Quad.easeOut',
+      onComplete: () => pulseRing.destroy(),
+    });
+
+    // Huvudklotet sväller upp
+    this.scene.tweens.add({
+      targets: this,
+      scaleX: 2.7,
+      scaleY: 2.7,
+      duration: 130,
+      yoyo: true,
+      ease: 'Back.easeOut',
+    });
+
+    // Skjut ut mindre projektiler i roterande stjärnmönster
+    const numProjectiles = 6;
+    const angleOffset = (this.pulseCount * Math.PI) / 6;
+
+    for (let i = 0; i < numProjectiles; i++) {
+      const angle = angleOffset + (i * (Math.PI * 2) / numProjectiles);
+      const orb = new SpectralOrb(this.scene, this.x, this.y, angle, 16);
+      orb.setScale(0.85);
+      if (this.scene.enemyProjectiles) {
+        this.scene.enemyProjectiles.add(orb);
+      }
+    }
+
+    if (this.pulseCount < this.maxPulses) {
+      this.scheduleNextPulse(1150); // Nästa puls efter 1.15s
+    } else {
+      // Alla pulser avfyrade: tona bort och förstör
+      this.scene.time.delayedCall(700, () => {
+        if (!this.active) return;
+        this.scene.tweens.add({
+          targets: this,
+          scaleX: 0,
+          scaleY: 0,
+          alpha: 0,
+          duration: 350,
+          ease: 'Back.easeIn',
+          onComplete: () => this.destroy(),
+        });
+      });
+    }
+  }
+
+  destroy(fromScene) {
+    if (this.hoverTween) this.hoverTween.stop();
+    if (this.pulseTimer) this.pulseTimer.remove();
+    super.destroy(fromScene);
+  }
+}
+
 export default class BossEnemy extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y) {
-    super(scene, x, y, 'boss_enemy');
+    super(scene, x, y, 'boss_enemy_sheet');
 
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
     // Towering, imposing boss presence (~130px height on screen)
-    this.baseScale = 0.13;
+    this.baseScale = 0.37;
     this.setScale(this.baseScale);
+
+    // Continuous looping animation according to spritesheet
+    this.play('boss_float');
 
     // Ethereal translucent presence
     this.baseAlpha = 0.95;
@@ -123,16 +359,16 @@ export default class BossEnemy extends Phaser.Physics.Arcade.Sprite {
     this.clearTint();
 
     // Physics body centered on the wraith queen's torso
-    this.body.setSize(180, 260);
-    this.body.setOffset(294, 380);
+    this.body.setSize(60, 90);
+    this.body.setOffset(90, 130);
     this.setCollideWorldBounds(true);
 
     // Boss Stats - Formidable Soulsborne Boss
-    this.maxHealth = 500;
-    this.health = 500;
+    this.maxHealth = 1500;
+    this.health = 1500;
     this.attackDamage = 28;
-    this.chaseSpeed = 135;
-    this.phase2Speed = 175;
+    this.chaseSpeed = 155;
+    this.phase2Speed = 201;
     this.activationRadius = 330; // Triggers when player nears the chest
     this.attackRange = 64;
     this.soulsReward = 2500;
@@ -144,7 +380,9 @@ export default class BossEnemy extends Phaser.Physics.Arcade.Sprite {
 
     this.attackCooldownTimer = 1.0;
     this.specialCooldownTimer = 3.5; // Starts ready shortly after awakening
-    this.lastSpecialType = 0; // alternates between scream (1) and teleport (2)
+    this.specialIndex = 0; // Cycles through 1 (Wave Scream), 2 (Wraith Orb), 3 (Teleport Slam)
+    this.dangerCircleGfx = null;
+    this.activeHazardOrb = null;
 
     this.telegraphTimer = 0;
     this.attackTimer = 0;
@@ -240,10 +478,10 @@ export default class BossEnemy extends Phaser.Physics.Arcade.Sprite {
     if (this.state === BossState.DEAD) return;
 
     const dt = delta / 1000;
-    this.hoverTimer += dt * 3.2;
+    this.hoverTimer += dt * 1.6;
 
-    // Hover bobbing effect
-    const hoverOffset = Math.sin(this.hoverTimer) * 4;
+    // Gentle hover bobbing for floor light and aura
+    const hoverOffset = Math.sin(this.hoverTimer) * 1.5;
     this.setDepth(this.y + 15);
 
     // Update emitters and light
@@ -276,10 +514,10 @@ export default class BossEnemy extends Phaser.Physics.Arcade.Sprite {
         this.updateAttackNormal(dt, player);
         break;
       case BossState.TELEGRAPH_SCREAM:
-        this.updateTelegraphScream(dt, player);
-        break;
-      case BossState.TELEGRAPH_TELEPORT:
-        // Handled by teleport sequence
+      case BossState.CASTING_WRAITH_ORB:
+      case BossState.TELEGRAPH_TELEPORT_SLAM:
+      case BossState.CHANNELING_SLAM:
+        // Handled by timed tweens and events
         break;
       case BossState.STAGGER:
         this.updateStagger(dt);
@@ -290,23 +528,15 @@ export default class BossEnemy extends Phaser.Physics.Arcade.Sprite {
   updateDormant(player) {
     this.body.setVelocity(0, 0);
 
-    // Smooth hovering float animation in the air while standing still at the chest
-    const hoverY = Math.sin(this.hoverTimer * 2.2) * 11;
+    // Calm, gentle hovering float animation while standing still at the chest
+    const hoverY = Math.sin(this.hoverTimer * 1.2) * 2.0;
     this.x = this.spawnPoint.x;
     this.y = this.spawnPoint.y + hoverY;
 
-    // Ethereal breathing stretch & squash
-    const breath = Math.sin(this.hoverTimer * 2.2);
-    const breathY = 1 + breath * 0.055;
-    const breathX = 1 - breath * 0.035;
-    this.setScale(this.baseScale * breathX, this.baseScale * breathY);
-
-    // Subtle ghostly swaying tilt
-    const sway = Math.sin(this.hoverTimer * 1.3) * 0.045;
-    this.setRotation(sway);
-
-    // Translucent spectral breathing alpha
-    this.setAlpha(0.85 + Math.sin(this.hoverTimer * 1.8) * 0.1);
+    // Keep sprite scale and rotation steady (spritesheet handles animation naturally)
+    this.setScale(this.baseScale);
+    this.setRotation(0);
+    this.setAlpha(0.95);
 
     // Cyan glowing ground aura pulses underneath the chest
     if (this.lightSource) {
@@ -384,15 +614,15 @@ export default class BossEnemy extends Phaser.Physics.Arcade.Sprite {
     const distToPlayer = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y);
     const speed = this.isPhase2 ? this.phase2Speed : this.chaseSpeed;
 
-    // Check Special Attack trigger
-    if (this.specialCooldownTimer <= 0 && distToPlayer <= 380) {
-      // Alternate between Special 1 (Scream) and Special 2 (Teleport)
-      if (this.lastSpecialType === 1) {
-        this.startSpecialTeleport(player);
-        this.lastSpecialType = 2;
+    // Check Special Attack trigger (Cycles through all 3 abilities)
+    if (this.specialCooldownTimer <= 0 && distToPlayer <= 420) {
+      this.specialIndex = ((this.specialIndex || 0) % 3) + 1;
+      if (this.specialIndex === 1) {
+        this.startSpecialWaveScream(player);
+      } else if (this.specialIndex === 2) {
+        this.startSpecialWraithOrb(player);
       } else {
-        this.startSpecialScream(player);
-        this.lastSpecialType = 1;
+        this.startSpecialTeleportSlam(player);
       }
       return;
     }
@@ -403,21 +633,16 @@ export default class BossEnemy extends Phaser.Physics.Arcade.Sprite {
       return;
     }
 
-    // Glide smoothly towards player
+    // Glide smoothly towards player without artificial rocking or stretching
     const angle = Phaser.Math.Angle.Between(this.x, this.y, player.x, player.y);
     this.body.setVelocity(
       Math.cos(angle) * speed,
       Math.sin(angle) * speed
     );
     this.setFlipX(player.x < this.x);
-    // Floating breathing undulation and sway during chase
-    const breath = Math.sin(this.hoverTimer * 2.5);
-    const breathY = 1 + breath * 0.045;
-    const breathX = 1 - breath * 0.025;
-    const sway = Math.cos(this.hoverTimer * 1.5) * 0.05;
-    this.setRotation(sway);
-    this.setScale(this.baseScale * breathX, this.baseScale * breathY);
-    this.setAlpha(0.92 + Math.sin(this.hoverTimer * 2.0) * 0.08);
+    this.setRotation(0);
+    this.setScale(this.baseScale);
+    this.setAlpha(0.95);
 
     if (this.lightSource) {
       this.lightSource.x = this.x;
@@ -465,8 +690,8 @@ export default class BossEnemy extends Phaser.Physics.Arcade.Sprite {
     this.clearTint();
     this.setScale(this.baseScale);
 
-    // Fast ghost lunge
-    const lungeSpeed = 260;
+    // Fast ghost lunge (+15% speed)
+    const lungeSpeed = 300;
     this.body.setVelocity(
       Math.cos(this.attackAngle) * lungeSpeed,
       Math.sin(this.attackAngle) * lungeSpeed
@@ -523,150 +748,260 @@ export default class BossEnemy extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
-  // --- SPECIAL ATTACK 1: Banshee Wail / Frost Nova Scream (Radial Orb Wave) ---
-  startSpecialScream(player) {
+  // --- ABILITY 1: Banshee Wave Scream (Djupt andetag och skrik ut i vågor) ---
+  startSpecialWaveScream(player) {
     this.state = BossState.TELEGRAPH_SCREAM;
-    this.telegraphTimer = 0.75;
     this.body.setVelocity(0, 0);
     this.setFlipX(player.x < this.x);
 
-    // Glowing cyan/white ascension
+    // 1. Djupt andetag / Inhale (~0.8s): lutar sig bakåt och drar in eterisk luft
     this.setTint(0x38bdf8);
 
-    // Expanding frost charge ring
-    const chargeRing = this.scene.add.circle(this.x, this.y, 10, 0x38bdf8, 0.4);
-    chargeRing.setDepth(this.depth - 1);
-    this.scene.tweens.add({
-      targets: chargeRing,
-      radius: 90,
-      alpha: 0,
-      duration: 700,
-      ease: 'Cubic.easeOut',
-      onComplete: () => chargeRing.destroy(),
-    });
-
     this.scene.tweens.add({
       targets: this,
-      scaleX: this.baseScale * 1.25,
-      scaleY: this.baseScale * 1.25,
-      duration: 700,
-      ease: 'Sine.easeIn',
+      scaleX: this.baseScale * 0.85,
+      scaleY: this.baseScale * 1.18,
+      duration: 780,
+      ease: 'Quad.easeIn',
+    });
+
+    const breathRing = this.scene.add.circle(this.x, this.y - 12, 100, 0x38bdf8, 0.45);
+    breathRing.setDepth(this.depth - 1);
+    this.scene.tweens.add({
+      targets: breathRing,
+      radius: 10,
+      alpha: 0.05,
+      duration: 780,
+      ease: 'Quad.easeIn',
+      onComplete: () => breathRing.destroy(),
+    });
+
+    // Skriker ut i vågor mot spelaren
+    this.scene.time.delayedCall(800, () => {
+      if (this.state === BossState.DEAD) return;
+      this.executeWaveScream(player);
     });
   }
 
-  updateTelegraphScream(dt) {
-    this.telegraphTimer -= dt;
-
-    if (this.telegraphTimer <= 0) {
-      this.executeScreamNova();
-    }
-  }
-
-  executeScreamNova() {
-    this.clearTint();
-    this.setScale(this.baseScale);
-
-    // Screen tremor on deafening banshee screech
-    this.scene.cameras.main.shake(350, 0.008);
-
-    // Burst of 10 radial spectral orbs
-    const numOrbs = this.isPhase2 ? 12 : 10;
-    const baseAngle = Phaser.Math.FloatBetween(0, Math.PI / numOrbs);
-
-    for (let i = 0; i < numOrbs; i++) {
-      const angle = baseAngle + (i * (Math.PI * 2 / numOrbs));
-      const orb = new SpectralOrb(this.scene, this.x, this.y, angle, 24);
-      if (this.scene.enemyProjectiles) {
-        this.scene.enemyProjectiles.add(orb);
-      }
-    }
-
-    // Scream shockwave particles
-    const shockwave = this.scene.add.particles(this.x, this.y, 'ember_spark', {
-      speed: { min: 90, max: 240 },
-      scale: { start: 1.0, end: 0 },
-      alpha: { start: 1, end: 0 },
-      tint: [0xa5f3fc, 0x38bdf8, 0xffffff],
-      lifespan: 400,
-      quantity: 26,
-      blendMode: 'ADD',
+  executeWaveScream(player) {
+    // Kasta fram huvudet i ett vrål
+    this.scene.tweens.add({
+      targets: this,
+      scaleX: this.baseScale * 1.18,
+      scaleY: this.baseScale * 0.92,
+      duration: 200,
+      yoyo: true,
+      ease: 'Back.easeOut',
     });
-    this.scene.time.delayedCall(450, () => shockwave.destroy());
 
-    this.specialCooldownTimer = this.isPhase2 ? 3.0 : 4.5;
-    this.attackCooldownTimer = 1.0;
-    this.state = BossState.CHASE;
+    const totalWaves = 3;
+    const waveInterval = 280; // ms mellan varje våg
+
+    for (let w = 1; w <= totalWaves; w++) {
+      this.scene.time.delayedCall((w - 1) * waveInterval, () => {
+        if (this.state === BossState.DEAD) return;
+
+        // Sikta direkt mot spelarens position vid varje våg
+        const aimAngle = Phaser.Math.Angle.Between(this.x, this.y - 10, player.x, player.y);
+        this.setFlipX(player.x < this.x);
+
+        const spawnDist = 32;
+        const wave = new ScreamWave(
+          this.scene,
+          this.x + Math.cos(aimAngle) * spawnDist,
+          this.y - 10 + Math.sin(aimAngle) * spawnDist,
+          aimAngle,
+          18,
+          w
+        );
+
+        if (this.scene.enemyProjectiles) {
+          this.scene.enemyProjectiles.add(wave);
+        }
+
+        // Lätt skakning vid varje vågvrål
+        this.scene.cameras.main.shake(160, 0.005);
+      });
+    }
+
+    // Återgå till CHASE efter att alla 3 vågor skjutits ut
+    this.scene.time.delayedCall(totalWaves * waveInterval + 200, () => {
+      if (this.state === BossState.DEAD) return;
+      this.clearTint();
+      this.setScale(this.baseScale);
+      this.specialCooldownTimer = this.isPhase2 ? 2.8 : 4.0;
+      this.attackCooldownTimer = 0.8;
+      this.state = BossState.CHASE;
+    });
   }
 
-  // --- SPECIAL ATTACK 2: Phantom Teleport & Shadow Claw Ambush ---
-  startSpecialTeleport(player) {
-    this.state = BossState.TELEGRAPH_TELEPORT;
+  // --- ABILITY 2: Wraith Hazard Orb (Kastas ut i arenan och pulserar mindre bollar) ---
+  startSpecialWraithOrb(player) {
+    this.state = BossState.CASTING_WRAITH_ORB;
     this.body.setVelocity(0, 0);
-
-    // Dissolve into dark mist
-    const mistDisperse = this.scene.add.particles(this.x, this.y, 'dust_puff', {
-      speed: { min: 30, max: 90 },
-      scale: { start: 1.0, end: 0 },
-      alpha: { start: 0.8, end: 0 },
-      tint: [0xc084fc, 0x38bdf8, 0x1e1b4b],
-      lifespan: 450,
-      quantity: 18,
-      blendMode: 'ADD',
-    });
-    this.scene.time.delayedCall(500, () => mistDisperse.destroy());
-
-    this.scene.tweens.add({
-      targets: this,
-      alpha: 0,
-      scaleX: this.baseScale * 0.3,
-      scaleY: this.baseScale * 0.3,
-      duration: 350,
-      ease: 'Sine.easeIn',
-      onComplete: () => {
-        // Teleport near the player (offset ~70px behind or to the flank)
-        const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
-        const dist = 75;
-        this.x = player.x + Math.cos(angle) * dist;
-        this.y = player.y + Math.sin(angle) * dist;
-
-        // Reappear with spectral burst
-        this.reappearAndAmbush(player);
-      },
-    });
-  }
-
-  reappearAndAmbush(player) {
     this.setFlipX(player.x < this.x);
 
-    const reappearParticles = this.scene.add.particles(this.x, this.y, 'ember_spark', {
-      speed: { min: 50, max: 140 },
-      scale: { start: 1.0, end: 0 },
-      alpha: { start: 0.9, end: 0 },
-      tint: [0xa855f7, 0xec4899, 0xffffff],
-      lifespan: 350,
-      quantity: 16,
-      blendMode: 'ADD',
-    });
-    this.scene.time.delayedCall(400, () => reappearParticles.destroy());
+    // Mystisk lila laddning (~0.5s)
+    this.setTint(0xa855f7);
 
     this.scene.tweens.add({
       targets: this,
-      alpha: 1.0,
       scaleX: this.baseScale * 1.1,
       scaleY: this.baseScale * 1.1,
-      duration: 250,
-      ease: 'Back.easeOut',
-      onComplete: () => {
-        this.setScale(this.baseScale);
-        // Instant ferocious strike!
-        const aimAngle = Phaser.Math.Angle.Between(this.x, this.y, player.x, player.y);
-        this.attackAngle = aimAngle;
-        this.attackDamage = 36; // Bonus damage on ambush
-        this.executeNormalAttack(player);
-        this.attackDamage = 28; // Reset back to standard
+      duration: 500,
+      ease: 'Sine.easeInOut',
+    });
 
-        this.specialCooldownTimer = this.isPhase2 ? 3.2 : 5.0;
+    this.scene.time.delayedCall(500, () => {
+      if (this.state === BossState.DEAD) return;
+
+      // Beräkna en slumpmässig position inne i arenan
+      const arenaMinX = Math.max(340, (this.scene.physics.world.bounds.x || 0) + 120);
+      const arenaMaxX = Math.min(940, (this.scene.physics.world.bounds.width || 1200) - 120);
+      const arenaMinY = Math.max(300, (this.scene.physics.world.bounds.y || 0) + 120);
+      const arenaMaxY = Math.min(740, (this.scene.physics.world.bounds.height || 1000) - 120);
+
+      const targetX = Phaser.Math.Between(arenaMinX, arenaMaxX);
+      const targetY = Phaser.Math.Between(arenaMinY, arenaMaxY);
+
+      // Kasta ut Wraith Orb
+      const hazardOrb = new WraithHazardOrb(this.scene, this.x, this.y - 35, targetX, targetY, this);
+      this.activeHazardOrb = hazardOrb;
+
+      // Återgå direkt till CHASE så bossen kämpar vidare samtidigt som orben pulserar
+      this.clearTint();
+      this.setScale(this.baseScale);
+      this.specialCooldownTimer = this.isPhase2 ? 3.0 : 4.5;
+      this.attackCooldownTimer = 1.0;
+      this.state = BossState.CHASE;
+    });
+  }
+
+  // --- ABILITY 3: Teleport Slam & Channeling Danger Circle (0.8s) ---
+  startSpecialTeleportSlam(player) {
+    this.state = BossState.TELEGRAPH_TELEPORT_SLAM;
+    this.body.setVelocity(0, 0);
+
+    // 1. Bossen lyser upp och växer under 1 sekund
+    this.setTint(0xffffff); // Bländande vit/eterisk glöd
+
+    this.scene.tweens.add({
+      targets: this,
+      scaleX: this.baseScale * 1.35,
+      scaleY: this.baseScale * 1.35,
+      duration: 1000,
+      ease: 'Quad.easeInOut',
+    });
+
+    const beacon = this.scene.add.circle(this.x, this.y, 20, 0x38bdf8, 0.5);
+    beacon.setDepth(this.depth - 1);
+    this.scene.tweens.add({
+      targets: beacon,
+      radius: 90,
+      alpha: 0,
+      duration: 1000,
+      ease: 'Quad.easeIn',
+      onComplete: () => beacon.destroy(),
+    });
+
+    this.scene.time.delayedCall(1000, () => {
+      if (this.state === BossState.DEAD) return;
+      this.executeTeleportSlamOnPlayer(player);
+    });
+  }
+
+  executeTeleportSlamOnPlayer(player) {
+    // 2. Teleportera PÅ spelaren
+    this.x = player.x;
+    this.y = player.y;
+    this.body.setVelocity(0, 0);
+    this.setDepth(this.y + 15);
+    this.setTint(0xf43f5e);
+
+    this.state = BossState.CHANNELING_SLAM;
+
+    // 3. Channela cirkel under sig i 0.8 sekunder
+    const circleRadius = 92;
+    const channelDuration = 800; // ms
+
+    const dangerGfx = this.scene.add.graphics();
+    dangerGfx.setDepth(Math.max(1, this.depth - 2));
+    this.dangerCircleGfx = dangerGfx;
+
+    const startTime = this.scene.time.now;
+
+    // Rita och fyll cirkeln progressivt under 0.8s
+    const updateEvent = this.scene.time.addEvent({
+      delay: 16,
+      repeat: Math.floor(channelDuration / 16),
+      callback: () => {
+        if (!dangerGfx.active || this.state === BossState.DEAD) {
+          updateEvent.remove();
+          dangerGfx.destroy();
+          return;
+        }
+
+        const elapsed = this.scene.time.now - startTime;
+        const progress = Phaser.Math.Clamp(elapsed / channelDuration, 0, 1);
+
+        dangerGfx.clear();
+
+        // Tydlig röd varningskant
+        dangerGfx.lineStyle(2.5, 0xef4444, 0.95);
+        dangerGfx.strokeCircle(this.x, this.y, circleRadius);
+
+        // Inre fyllning som växer och visar channelingtiden
+        const fillRadius = circleRadius * progress;
+        dangerGfx.fillStyle(0xef4444, 0.15 + progress * 0.35);
+        dangerGfx.fillCircle(this.x, this.y, fillRadius);
       },
+    });
+
+    // 4. Detonera efter 0.8 sekunder
+    this.scene.time.delayedCall(channelDuration, () => {
+      updateEvent.remove();
+      if (dangerGfx.active) dangerGfx.destroy();
+      this.dangerCircleGfx = null;
+
+      if (this.state === BossState.DEAD) return;
+
+      // Eruption & Detonation!
+      this.scene.cameras.main.shake(300, 0.014);
+
+      const blastRing = this.scene.add.circle(this.x, this.y, circleRadius, 0xf43f5e, 0.85);
+      blastRing.setDepth(this.depth - 1);
+      this.scene.tweens.add({
+        targets: blastRing,
+        radius: circleRadius + 40,
+        alpha: 0,
+        duration: 300,
+        ease: 'Cubic.easeOut',
+        onComplete: () => blastRing.destroy(),
+      });
+
+      // Kontrollera om spelaren står kvar i cirkeln och inte dashar (i-frames)
+      const dist = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y);
+      if (dist <= circleRadius) {
+        if (!player.isInvulnerable) {
+          player.takeDamage(48); // Mycket skada om man inte dashar ut!
+        }
+      }
+
+      // Återställ skala och gå tillbaka till CHASE
+      this.scene.tweens.add({
+        targets: this,
+        scaleX: this.baseScale,
+        scaleY: this.baseScale,
+        duration: 250,
+        ease: 'Quad.easeOut',
+        onComplete: () => {
+          this.clearTint();
+          this.setScale(this.baseScale);
+          this.specialCooldownTimer = this.isPhase2 ? 2.8 : 4.2;
+          this.attackCooldownTimer = 1.0;
+          this.state = BossState.CHASE;
+        },
+      });
     });
   }
 
@@ -692,17 +1027,6 @@ export default class BossEnemy extends Phaser.Physics.Arcade.Sprite {
       }
     });
 
-    // Massive soul sparks on hit
-    this.scene.add.particles(this.x, this.y, 'ember_spark', {
-      speed: { min: 80, max: 200 },
-      scale: { start: 1.1, end: 0 },
-      alpha: { start: 1, end: 0 },
-      tint: [0xa5f3fc, 0xd4af37, 0xffffff],
-      lifespan: 260,
-      quantity: 12,
-      blendMode: 'ADD',
-    });
-
     // Check Phase 2 Transition (at 50% HP)
     if (!this.isPhase2 && this.health <= this.maxHealth * 0.5) {
       this.enterPhase2();
@@ -724,8 +1048,10 @@ export default class BossEnemy extends Phaser.Physics.Arcade.Sprite {
       this.lightSource.setAlpha(0.35);
     }
 
-    // Scream shockwave
-    this.executeScreamNova();
+    // Wave scream to herald Phase 2
+    if (this.scene.player) {
+      this.startSpecialWaveScream(this.scene.player);
+    }
   }
 
   updateStagger(dt) {
@@ -782,18 +1108,6 @@ export default class BossEnemy extends Phaser.Physics.Arcade.Sprite {
       this.scene.player.addSouls(this.soulsReward);
     }
 
-    // Cataclysmic soul eruption
-    const soulExplosion = this.scene.add.particles(this.x, this.y, 'ember_spark', {
-      speed: { min: 80, max: 320 },
-      scale: { start: 1.8, end: 0.1 },
-      alpha: { start: 1, end: 0 },
-      tint: [0xffd700, 0xa5f3fc, 0xffffff, 0xf43f5e],
-      lifespan: 1200,
-      quantity: 50,
-      blendMode: 'ADD',
-    });
-    this.scene.time.delayedCall(1300, () => soulExplosion.destroy());
-
     // Dissolve into the light
     this.scene.tweens.add({
       targets: this,
@@ -815,6 +1129,8 @@ export default class BossEnemy extends Phaser.Physics.Arcade.Sprite {
     if (this.lightSource) this.lightSource.destroy();
     if (this.wispEmitter) this.wispEmitter.destroy();
     if (this.bossBarContainer) this.bossBarContainer.destroy();
+    if (this.dangerCircleGfx && this.dangerCircleGfx.active) this.dangerCircleGfx.destroy();
+    if (this.activeHazardOrb && this.activeHazardOrb.active) this.activeHazardOrb.destroy();
     super.destroy(fromScene);
   }
 }

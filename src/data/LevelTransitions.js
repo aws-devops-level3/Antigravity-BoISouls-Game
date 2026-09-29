@@ -99,6 +99,10 @@ export const LEVELS = {
       { x: 780,  y: 470 },
       { x: 780,  y: 570 },
     ],
+    // Vänliga NPCs i rummet
+    npcs: [
+      { name: 'PUMBA', type: 'cat', x: 1244, y: 1040, width: 40, height: 38 },
+    ],
   },
 
   /*

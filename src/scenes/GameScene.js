@@ -5,6 +5,7 @@ import GhostEnemy from '../entities/GhostEnemy.js';
 import SkeletonEnemy from '../entities/SkeletonEnemy.js';
 import BossEnemy from '../entities/BossEnemy.js';
 import ChickenNPC from '../entities/ChickenNPC.js';
+import CatNPC from '../entities/CatNPC.js';
 import SoulsHUD from '../ui/SoulsHUD.js';
 import level1Data from '../data/SoulsLevel1.json';
 import DD2VTTParser from '../utils/DD2VTTParser.js';
@@ -129,8 +130,10 @@ export default class GameScene extends Phaser.Scene {
     this.enemies = this.add.group();
     this.knights = this.add.group();
     this.enemyProjectiles = this.physics.add.group({ runChildUpdate: true });
+    this.slashes = this.add.group({ runChildUpdate: true });
     this.spawnEnemies();
     this.spawnChickens();
+    this.spawnNPCs();
 
     // Globala kontroller och snabbtangenter för att deaktivera/aktivera monster
     window.gameScene = this;
@@ -761,6 +764,21 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
+  spawnNPCs() {
+    this.catPumba = null;
+    // Katten PUMBA i SoulsBossRoom1 på koordinaterna x: 1244, y: 1040, storlek: 40x38
+    if (this.currentMapKey === 'SoulsBossRoom1' || (this.mapConfig && this.mapConfig.npcs)) {
+      this.catPumba = new CatNPC(this, 1244, 1040, 40, 38);
+      this.physics.add.collider(this.player, this.catPumba);
+      if (this.chickens) {
+        this.physics.add.collider(this.chickens, this.catPumba);
+      }
+      if (this.enemies) {
+        this.physics.add.collider(this.enemies, this.catPumba);
+      }
+    }
+  }
+
   unlockHatch() {
     this.hatchUnlocked = true;
 
@@ -990,8 +1008,14 @@ export default class GameScene extends Phaser.Scene {
       this.doorPromptContainer.setVisible(false);
     }
 
-    if (this.player && this.player.body) {
-      this.player.body.setVelocity(0, 0);
+    if (this.player) {
+      this.player.isDead = true;
+      if (this.player.body) {
+        this.player.body.setVelocity(0, 0);
+      }
+      if (this.player.hammer) {
+        this.player.hammer.setVisible(false);
+      }
       this.player.play('player_death', true);
     }
 
@@ -1005,8 +1029,8 @@ export default class GameScene extends Phaser.Scene {
     // Subtle dramatic camera zoom on the fallen player
     this.cameras.main.zoomTo(1.15, 3000, 'Sine.easeOut');
 
-    // Wait 500ms for player collapse animation, then show the iconic YOU SUCK banner
-    this.time.delayedCall(500, () => {
+    // Wait for player collapse animation to complete, then show the iconic YOU SUCK banner
+    this.time.delayedCall(800, () => {
       this.displayYouSuckBanner();
     });
   }
@@ -1150,29 +1174,9 @@ export default class GameScene extends Phaser.Scene {
         });
       }
 
-      // Combat hit detection: player colossal hammer smash hitting enemies
-      if (!this.isPlayerDead && this.player.isAttacking) {
-        this.enemies.getChildren().forEach(enemy => {
-          if (enemy.state !== 'DEAD' && enemy.lastHitSwingId !== this.player.currentSwingId) {
-            if (this.player.isPointInAttackCone(enemy.x, enemy.y)) {
-              enemy.lastHitSwingId = this.player.currentSwingId;
-              const hammerDamage = 45;
-              enemy.takeDamage(hammerDamage, this.player.x, this.player.y);
-            }
-          }
-        });
-
-        // Hit detection on chickens
-        if (this.chickens) {
-          this.chickens.getChildren().forEach(chicken => {
-            if (chicken.state !== 'DEAD' && chicken.lastHitSwingId !== this.player.currentSwingId) {
-              if (this.player.isPointInAttackCone(chicken.x, chicken.y)) {
-                chicken.lastHitSwingId = this.player.currentSwingId;
-                chicken.takeDamage(1, this.player.x, this.player.y);
-              }
-            }
-          });
-        }
+      // Update Katten PUMBA om katten finns
+      if (this.catPumba && this.catPumba.active) {
+        this.catPumba.update(time, delta);
       }
 
       // Check room cleared condition
@@ -1189,6 +1193,27 @@ export default class GameScene extends Phaser.Scene {
       }
     }
   }
+
+  /**
+   * Hitstop: Fryser fysikvärlden under en mikropaus (30-50 ms) för 'juicy' träffkänsla
+   * @param {number} duration Millisekunder att pausa fysiken
+   */
+  triggerHitstop(duration = 40) {
+    if (this.isHitstopping) return;
+    this.isHitstopping = true;
+
+    if (this.physics && this.physics.world) {
+      this.physics.world.isPaused = true;
+    }
+
+    setTimeout(() => {
+      if (this.physics && this.physics.world) {
+        this.physics.world.isPaused = false;
+      }
+      this.isHitstopping = false;
+    }, duration);
+  }
+
 
   /**
    * Aktiverar eller deaktiverar alla monster på kartan.

@@ -210,9 +210,6 @@ export default class ChickenNPC extends Phaser.Physics.Arcade.Sprite {
     // Spela kyckling-ljud och blodigt 'splat'
     this.playDeathSounds(scene);
 
-    // Satisfying micro camera rumble
-    scene.cameras.main.shake(190, 0.007);
-
     // 1. Gory Blood Splat Decal stamped on the floor
     const mainSplat = scene.add.image(this.x, this.y + 4, 'blood_splat');
     mainSplat.setScale(Phaser.Math.FloatBetween(0.7, 1.05));

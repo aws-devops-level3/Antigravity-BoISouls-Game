@@ -10,9 +10,13 @@ export default class BootScene extends Phaser.Scene {
   preload() {
     this.load.image('dungeon_bg', '/assets/dungeon_background.jpg');
     this.load.image('dungeon_bg_room2', '/assets/dungeon_room2.jpg');
-    this.load.spritesheet('player_knight', '/assets/player_spritesheet.png', {
-      frameWidth: 112,
-      frameHeight: 120,
+    this.load.spritesheet('player_knight', '/assets/player_spritesheet_full.png', {
+      frameWidth: 100,
+      frameHeight: 100,
+    });
+    this.load.spritesheet('player_death', '/assets/player_death.png', {
+      frameWidth: 100,
+      frameHeight: 100,
     });
     this.load.image('hammer', '/assets/hammer.png');
     this.load.image('reach_arc', '/assets/reach_arc.png');
@@ -21,13 +25,21 @@ export default class BootScene extends Phaser.Scene {
       frameHeight: 32,
     });
     this.load.image('greatsword_bloody', '/assets/greatsword_bloody.png');
+    this.load.image('greatsword_iron', '/assets/greatsword_iron.png');
+    this.load.image('burning_scimitar', '/assets/burning_scimitar.png');
+    this.load.image('shadow_dagger', '/assets/shadow_dagger.png');
     this.load.image('knight_enemy', '/assets/knight_enemy.png');
     this.load.image('ghost_enemy', '/assets/ghost_enemy.png');
     this.load.image('skeleton_enemy', '/assets/skeleton_enemy.png');
     this.load.image('bone_arrow', '/assets/bone_arrow.png');
     this.load.image('boss_enemy', '/assets/boss_enemy.png');
+    this.load.spritesheet('boss_enemy_sheet', `/assets/boss_spritesheet.png?t=${Date.now()}`, {
+      frameWidth: 240,
+      frameHeight: 360,
+    });
     this.load.image('spectral_orb', '/assets/spectral_orb.png');
     this.load.image('chicken_npc', '/assets/chicken.png');
+    this.load.image('cat_pumba', '/assets/cat_pumba.png');
     this.load.audio('chicken_squawk', encodeURI('/assets/sounds/Chicken sounds hen clucking (1).mp3'));
     this.load.audio('chicken_cluck', encodeURI('/assets/sounds/Chicken sounds hen clucking (1).mp3'));
     this.load.audio('blood_splat', '/assets/sounds/blood_splat.wav');
@@ -61,6 +73,9 @@ export default class BootScene extends Phaser.Scene {
     if (this.textures.exists('player_knight')) {
       this.textures.get('player_knight').setFilter(Phaser.Textures.FilterMode.NEAREST);
     }
+    if (this.textures.exists('player_death')) {
+      this.textures.get('player_death').setFilter(Phaser.Textures.FilterMode.NEAREST);
+    }
     if (this.textures.exists('hammer')) {
       this.textures.get('hammer').setFilter(Phaser.Textures.FilterMode.NEAREST);
     }
@@ -72,6 +87,15 @@ export default class BootScene extends Phaser.Scene {
     }
     if (this.textures.exists('greatsword_bloody')) {
       this.textures.get('greatsword_bloody').setFilter(Phaser.Textures.FilterMode.NEAREST);
+    }
+    if (this.textures.exists('greatsword_iron')) {
+      this.textures.get('greatsword_iron').setFilter(Phaser.Textures.FilterMode.NEAREST);
+    }
+    if (this.textures.exists('burning_scimitar')) {
+      this.textures.get('burning_scimitar').setFilter(Phaser.Textures.FilterMode.NEAREST);
+    }
+    if (this.textures.exists('shadow_dagger')) {
+      this.textures.get('shadow_dagger').setFilter(Phaser.Textures.FilterMode.NEAREST);
     }
     if (this.textures.exists('knight_enemy')) {
       this.textures.get('knight_enemy').setFilter(Phaser.Textures.FilterMode.NEAREST);
@@ -88,11 +112,17 @@ export default class BootScene extends Phaser.Scene {
     if (this.textures.exists('boss_enemy')) {
       this.textures.get('boss_enemy').setFilter(Phaser.Textures.FilterMode.NEAREST);
     }
+    if (this.textures.exists('boss_enemy_sheet')) {
+      this.textures.get('boss_enemy_sheet').setFilter(Phaser.Textures.FilterMode.LINEAR);
+    }
     if (this.textures.exists('chicken_npc')) {
       this.textures.get('chicken_npc').setFilter(Phaser.Textures.FilterMode.NEAREST);
     }
     if (this.textures.exists('spectral_orb')) {
       this.textures.get('spectral_orb').setFilter(Phaser.Textures.FilterMode.LINEAR);
+    }
+    if (this.textures.exists('cat_pumba')) {
+      this.textures.get('cat_pumba').setFilter(Phaser.Textures.FilterMode.LINEAR);
     }
     if (this.textures.exists('flask_red')) {
       this.textures.get('flask_red').setFilter(Phaser.Textures.FilterMode.NEAREST);
@@ -119,18 +149,28 @@ export default class BootScene extends Phaser.Scene {
       });
     }
 
-    // Player character animations (112x120 frames)
-    // 1. Idle: Rad 1 (Frames 0 to 9)
-    if (!this.anims.exists('player_idle')) {
+    // Boss continuous floating / idle animation loop (36 frames from high-res MP4)
+    if (!this.anims.exists('boss_float')) {
       this.anims.create({
-        key: 'player_idle',
-        frames: this.anims.generateFrameNumbers('player_knight', { start: 0, end: 9 }),
-        frameRate: 8,
+        key: 'boss_float',
+        frames: this.anims.generateFrameNumbers('boss_enemy_sheet', { start: 0, end: 35 }),
+        frameRate: 12,
         repeat: -1,
+        yoyo: true,
       });
     }
 
-    // 2. Run: 8-frame springcykel med benrörelser (Frames 10 till 17) med hög och mjuk FPS
+    // Player character animations (player_spritesheet_full.png has 6 frames of 100x100)
+    if (this.anims.exists('player_idle')) {
+      this.anims.remove('player_idle');
+    }
+    this.anims.create({
+      key: 'player_idle',
+      frames: [{ key: 'player_knight', frame: 0 }],
+      frameRate: 1,
+      repeat: -1,
+    });
+
     if (this.anims.exists('player_walk')) {
       this.anims.remove('player_walk');
     }
@@ -139,30 +179,36 @@ export default class BootScene extends Phaser.Scene {
     }
     this.anims.create({
       key: 'player_run',
-      frames: this.anims.generateFrameNumbers('player_knight', { start: 10, end: 17 }),
-      frameRate: 22,
+      frames: this.anims.generateFrameNumbers('player_knight', { start: 0, end: 5 }),
+      frameRate: 10,
+      repeat: -1,
+    });
+    this.anims.create({
+      key: 'player_walk',
+      frames: this.anims.generateFrameNumbers('player_knight', { start: 0, end: 5 }),
+      frameRate: 10,
       repeat: -1,
     });
 
-    // 3. Attack: Rad 3 (Frames 20 to 29) - Tvåhandat överhandsslag med hammaren
-    if (!this.anims.exists('player_attack')) {
-      this.anims.create({
-        key: 'player_attack',
-        frames: this.anims.generateFrameNumbers('player_knight', { start: 20, end: 29 }),
-        frameRate: 15,
-        repeat: 0,
-      });
+    if (this.anims.exists('player_attack')) {
+      this.anims.remove('player_attack');
     }
+    this.anims.create({
+      key: 'player_attack',
+      frames: [{ key: 'player_knight', frame: 0 }],
+      frameRate: 10,
+      repeat: 0,
+    });
 
-    // 4. Death: Rad 5 (Frames 40 to 49)
-    if (!this.anims.exists('player_death')) {
-      this.anims.create({
-        key: 'player_death',
-        frames: this.anims.generateFrameNumbers('player_knight', { start: 40, end: 49 }),
-        frameRate: 9,
-        repeat: 0,
-      });
+    if (this.anims.exists('player_death')) {
+      this.anims.remove('player_death');
     }
+    this.anims.create({
+      key: 'player_death',
+      frames: this.anims.generateFrameNumbers('player_death', { start: 0, end: 3 }),
+      frameRate: 6,
+      repeat: 0,
+    });
 
     // Generate all other game textures procedurally for a rich Dark Souls 3 aesthetic
     this.createFloorTexture();
@@ -184,6 +230,8 @@ export default class BootScene extends Phaser.Scene {
     this.createDoorRuneTexture();
     this.createBloodTextures();
     this.createCharacterDropShadowTexture();
+    this.createShadowDaggerTexture();
+    this.createBoneStaffTexture();
 
     this.scene.start('GameScene');
   }
@@ -1083,5 +1131,96 @@ export default class BootScene extends Phaser.Scene {
     featherCtx.fillStyle = '#dc2626';
     featherCtx.fillRect(4.5, 7.5, 1, 1);
     featherCanvas.refresh();
+  }
+
+  // Shadow Dagger texture (14x24) - sleek assassin's dagger
+  createShadowDaggerTexture() {
+    if (this.textures.exists('shadow_dagger')) return;
+    const canvas = this.textures.createCanvas('shadow_dagger', 14, 24);
+    const ctx = canvas.getContext();
+
+    // Steel pommel
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillRect(5, 21, 4, 2);
+
+    // Dark leather wrapped grip
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(6, 15, 2, 6);
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(6, 17, 2, 1);
+    ctx.fillRect(6, 19, 2, 1);
+
+    // Crossguard with cyan jewel
+    ctx.fillStyle = '#475569';
+    ctx.fillRect(3, 13, 8, 2);
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillRect(6, 13, 2, 2);
+
+    // Dagger blade
+    ctx.fillStyle = '#cbd5e1';
+    ctx.beginPath();
+    ctx.moveTo(7, 2);
+    ctx.lineTo(10, 13);
+    ctx.lineTo(4, 13);
+    ctx.closePath();
+    ctx.fill();
+
+    // Inner fuller groove with cyan glow
+    ctx.fillStyle = '#0284c7';
+    ctx.fillRect(6, 5, 2, 7);
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillRect(6, 6, 2, 4);
+
+    // Blade tip highlight
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(6, 2, 2, 2);
+
+    canvas.refresh();
+    this.textures.get('shadow_dagger').setFilter(Phaser.Textures.FilterMode.NEAREST);
+  }
+
+  // Spectral Bone Staff texture (14x34) - mystical ossuary staff
+  createBoneStaffTexture() {
+    if (this.textures.exists('bone_staff')) return;
+    const canvas = this.textures.createCanvas('bone_staff', 14, 34);
+    const ctx = canvas.getContext();
+
+    // Bone staff shaft
+    ctx.fillStyle = '#e2e8f0';
+    ctx.fillRect(6, 9, 2, 23);
+
+    // Dark grip wrap
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(5, 20, 4, 8);
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(5, 22, 4, 1);
+    ctx.fillRect(5, 25, 4, 1);
+
+    // Bottom bone spike
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillRect(6, 32, 2, 2);
+
+    // Top crescent bone claws
+    ctx.fillStyle = '#f1f5f9';
+    ctx.fillRect(4, 5, 2, 5);
+    ctx.fillRect(8, 5, 2, 5);
+    ctx.fillRect(5, 8, 4, 2);
+
+    // Spectral violet orb floating in top claw
+    ctx.fillStyle = '#a855f7';
+    ctx.beginPath();
+    ctx.arc(7, 4, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#c084fc';
+    ctx.beginPath();
+    ctx.arc(7, 4, 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(6, 3, 1, 1);
+
+    canvas.refresh();
+    this.textures.get('bone_staff').setFilter(Phaser.Textures.FilterMode.NEAREST);
   }
 }

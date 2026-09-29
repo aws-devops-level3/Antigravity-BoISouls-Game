@@ -1,4 +1,7 @@
 import Phaser from 'phaser';
+import COMBAT_CONFIG from '../data/CombatConfig.js';
+import SlashArc from './SlashArc.js';
+import { WEAPONS, DEFAULT_WEAPON_ID } from '../data/weapons.js';
 
 // Shortest-distance angle interpolation helper
 function lerpAngle(a, b, t) {
@@ -18,8 +21,8 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
-    // Scale for authentic character presence (matching enemy knight height ~76px)
-    this.baseScale = 0.76;
+    // Scale for authentic pixel-art character presence (player_spritesheet_full.png)
+    this.baseScale = 2.2;
     this.setScale(this.baseScale);
     this.clearTint();
 
@@ -27,46 +30,46 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     if (this.preFX) {
       // 1.5-2px subtle pale silvery-steel rim outline
       this.glowFX = this.preFX.addGlow(0xe2ecf4, 1.8, 0, false, 0.2, 8);
-      // Subtle brightness and contrast enhancement (+8%) so armor details and red tabard pop
+      // Subtle brightness and contrast enhancement (+8%) so armor details pop
       this.colorMatrix = this.preFX.addColorMatrix();
       this.colorMatrix.brightness(1.08);
       this.colorMatrix.contrast(1.08);
     }
 
     // Ground Drop Shadow directly under feet for physical grounding
-    this.shadow = scene.add.image(x, y + 40, 'character_drop_shadow');
+    this.shadow = scene.add.image(x, y + 18, 'character_drop_shadow');
     this.shadow.setDepth(Math.max(1, this.depth - 1));
-    this.shadow.setScale(1.15, 0.85);
-    this.shadow.setAlpha(0.72);
+    this.shadow.setScale(0.85, 0.55);
+    this.shadow.setAlpha(0.68);
 
     // Soft warm lantern aura around the player
     if (scene.textures.exists('soft_light_glow')) {
-      this.lightSource = scene.add.image(x, y + 6, 'soft_light_glow');
-      this.lightSource.setDisplaySize(160, 160);
-      this.lightSource.setAlpha(0.20);
+      this.lightSource = scene.add.image(x, y + 4, 'soft_light_glow');
+      this.lightSource.setDisplaySize(72, 72);
+      this.lightSource.setAlpha(0.18);
       this.lightSource.setDepth(1);
       this.lightSource.setBlendMode(Phaser.BlendModes.ADD);
       this.lightSource.setTint(0xffd599);
     }
 
     // Physics body adjustments for 2.5D / top-down movement at knight's feet
-    this.body.setSize(28, 16);
-    this.body.setOffset(42, 98);
+    this.body.setSize(16, 12);
+    this.body.setOffset(42, 50);
     this.setCollideWorldBounds(true);
 
     // Disable automatic arcade velocity integration so our custom AABB resolution controls movement
     this.body.moves = false;
 
     // AABB Collision Box properties (centered at the knight's feet)
-    this.colliderWidth = 26;
-    this.colliderHeight = 18;
-    this.colliderOffsetY = 24; // Y-offset from sprite center down to the feet
+    this.colliderWidth = 24;
+    this.colliderHeight = 16;
+    this.colliderOffsetY = 16; // Y-offset from sprite center down to the feet
 
     // Internal velocity components for collision-checked movement
     this.vx = 0;
     this.vy = 0;
 
-    // Play default idle animation (Rad 1, frames 0 to 9)
+    // Play default idle animation
     this.play('player_idle');
 
     // Movement attributes - runSpeed (260 px/s) standard hastighet hela tiden
@@ -86,34 +89,40 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.souls = 2450;
     this.staminaRegenRate = 25; // per second
     this.staminaSprintCost = 18; // per second
-    this.rollStaminaCost = Math.round(this.maxStamina * 0.15); // 15% stamina cost (15 points)
-    this.staminaRegenDelayTimer = 0; // Pauses regen after rolling/sprinting
+    this.staminaRegenDelayTimer = 0; // Pauses regen after actions
     this.isSprinting = false;
 
-    // Dodge Roll attributes
-    this.isRolling = false;
+    // Dash attributes (ersätter Dodge Roll på Mellanslag / Space)
+    this.isDashing = false;
     this.isInvulnerable = false;
-    this.rollTimer = 0;
-    this.rollDuration = 0.42; // seconds
-    this.rollDirection = new Phaser.Math.Vector2(0, 1);
+    this.dashTimer = 0;
+    this.dashDuration = COMBAT_CONFIG.dashDuration || 0.20;
+    this.dashCooldownTimer = 0;
+    this.dashDirection = new Phaser.Math.Vector2(0, 1);
     this.lastFacingVector = new Phaser.Math.Vector2(0, 1); // default facing forward
     this.afterimageTimer = 0;
 
-    // Colossal Warhammer is integrated directly in the knight artwork
-    this.hammer = scene.add.sprite(x, y, 'hammer');
-    this.hammer.setVisible(false);
+    // Utrusta standardvapen från vapenregistret (src/data/weapons.js)
+    this.currentWeapon = WEAPONS[DEFAULT_WEAPON_ID] || Object.values(WEAPONS)[0];
 
-    // Hammer Attack attributes (Heavy overhead smash)
+    // Synligt vapen som spelaren håller i handen
+    this.weaponScale = this.currentWeapon.scale;
+    this.weaponSprite = scene.add.sprite(x, y, this.currentWeapon.sprite);
+    this.weaponSprite.setOrigin(this.currentWeapon.origin.x, this.currentWeapon.origin.y);
+    this.weaponSprite.setScale(this.weaponScale);
+    this.weaponSprite.setVisible(true);
+    this.weaponSprite.setDepth(this.depth + 1);
+
+    // Bakåtkompatibilitets-alias för kod som refererar till this.hammer
+    this.hammer = this.weaponSprite;
+
+    // Attack attributes (Tiny Rogues style snabba melee-svep / projektiler)
     this.isAttacking = false;
     this.attackTimer = 0;
-    this.attackDuration = 0.67; // seconds (colossal hammer 10-frame overhead strike @ 15fps)
-    this.attackStaminaCost = 22; // 22% stamina cost
-    this.attackAngle = 0;
-    this.attackRange = 78; // Extended reach for colossal hammer
-    this.attackArc = Phaser.Math.DegToRad(110); // 110-degree sweep cone
+    this.attackDuration = 0.16; // Snabb visuell attack (låser ej rörelsen!)
     this.attackCooldownTimer = 0;
     this.currentSwingId = 0;
-    this.hasTriggeredSmash = false;
+    this.aimAngle = 0;
 
     // Movement direction vector
     this.moveVector = new Phaser.Math.Vector2(0, 0);
@@ -137,12 +146,31 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       SHIFT: scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT),
       SPACE: scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
       Q: scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Q),
+      // Snabbknappar för att byta vapen: F1-F5 samt 1-5
+      F1: scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F1),
+      F2: scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F2),
+      F3: scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F3),
+      F4: scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F4),
+      F5: scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F5),
+      ONE: scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ONE),
+      TWO: scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.TWO),
+      THREE: scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.THREE),
+      FOUR: scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.FOUR),
+      FIVE: scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.FIVE),
       // Arrow keys backup for convenience
       UP: scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.UP),
       DOWN: scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN),
       LEFT: scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.LEFT),
       RIGHT: scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT),
     };
+
+    // Förhindra standard browser-kortkommandon (F1 hjälp, F3 sök etc.)
+    this.onKeyDownPreventDefaults = (e) => {
+      if (['F1', 'F2', 'F3', 'F4', 'F5'].includes(e.key)) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('keydown', this.onKeyDownPreventDefaults);
 
     // Listen to mouse pointer click for sword attack
     this.pointerDownListener = (pointer) => {
@@ -184,48 +212,68 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     const dt = delta / 1000;
 
-    // Update stamina delay timer
+    // Update timers
     if (this.staminaRegenDelayTimer > 0) {
       this.staminaRegenDelayTimer -= dt;
     }
-
-    // Update attack cooldown timer
     if (this.attackCooldownTimer > 0) {
       this.attackCooldownTimer -= dt;
     }
-
-    // Update flask drink cooldown timer
+    if (this.dashCooldownTimer > 0) {
+      this.dashCooldownTimer -= dt;
+    }
     if (this.drinkFlaskCooldownTimer > 0) {
       this.drinkFlaskCooldownTimer -= dt;
     }
 
-    if (this.isRolling) {
-      this.updateRoll(dt);
-    } else if (this.isAttacking) {
-      this.updateAttack(dt);
+    // 1. Mus-sikte: Spelaren ska alltid vända sig och sikta mot muspekaren (cursor),
+    // oberoende av rörelseriktningen med WASD.
+    const pointer = this.scene && this.scene.input ? this.scene.input.activePointer : null;
+    if (pointer) {
+      this.aimAngle = Phaser.Math.Angle.Between(this.x, this.y, pointer.worldX, pointer.worldY);
+      this.setFlipX(Math.cos(this.aimAngle) < 0);
+    }
+
+    // 2. Kontinuerlig attack: Att hålla in vänster musknapp ska attackera kontinuerligt
+    // baserat på variabeln attackCooldown / attackSpeed.
+    if (pointer && pointer.isDown && pointer.button === 0) {
+      const isDraggingColliders = this.scene && this.scene.collisionManager && this.scene.collisionManager.debugColliders && this.scene.collisionManager.isDragging;
+      if (!isDraggingColliders && this.attackCooldownTimer <= 0 && !this.isDashing) {
+        this.performAttack(pointer);
+      }
+    }
+
+    // 3. Dash vs normal rörelse (spelaren kan röra sig fritt även under attacker för 'Tiny Rogues' flyt)
+    if (this.isDashing) {
+      this.updateDash(dt);
+      this.updateWeapon(dt);
     } else {
       this.handleInput(dt);
       this.handleMovement(dt);
+      if (this.isAttacking) {
+        this.updateAttack(dt);
+      }
       this.handleAnimation(dt);
       this.updateWeapon(dt);
     }
 
     // Update ground drop shadow position and dynamics
     if (this.shadow) {
-      this.shadow.setPosition(this.x, this.y + 40);
+      this.shadow.setPosition(this.x, this.y + 18);
       this.shadow.setDepth(Math.max(1, this.depth - 1));
-      if (this.isRolling) {
-        const rollT = Math.min(1, this.rollTimer / this.rollDuration);
-        const lift = Math.sin(rollT * Math.PI) * 0.35;
-        this.shadow.setScale(1.15 * (1 - lift * 0.4), 0.85 * (1 - lift * 0.4));
-        this.shadow.setAlpha(0.72 * (1 - lift * 0.3));
-      } else {
-        this.shadow.setScale(1.15, 0.85);
-        this.shadow.setAlpha(0.72);
-      }
+      this.shadow.setScale(0.85, 0.55);
+      this.shadow.setAlpha(0.68);
     }
 
     this.updateLight();
+  }
+
+  // Bakåtkompatibilitet
+  get isRolling() {
+    return this.isDashing;
+  }
+  set isRolling(val) {
+    this.isDashing = val;
   }
 
   handleInput(dt) {
@@ -236,10 +284,23 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       this.drink_flask();
     }
 
-    // Check for Dodge Roll trigger (SPACE)
+    // Vapenväxling via F1-F5 eller siffertangenter 1-5
+    if (Phaser.Input.Keyboard.JustDown(this.keys.F1) || Phaser.Input.Keyboard.JustDown(this.keys.ONE)) {
+      this.equipWeapon('warhammer');
+    } else if (Phaser.Input.Keyboard.JustDown(this.keys.F2) || Phaser.Input.Keyboard.JustDown(this.keys.TWO)) {
+      this.equipWeapon('greatsword');
+    } else if (Phaser.Input.Keyboard.JustDown(this.keys.F3) || Phaser.Input.Keyboard.JustDown(this.keys.THREE)) {
+      this.equipWeapon('scimitar');
+    } else if (Phaser.Input.Keyboard.JustDown(this.keys.F4) || Phaser.Input.Keyboard.JustDown(this.keys.FOUR)) {
+      this.equipWeapon('dagger');
+    } else if (Phaser.Input.Keyboard.JustDown(this.keys.F5) || Phaser.Input.Keyboard.JustDown(this.keys.FIVE)) {
+      this.equipWeapon('staff');
+    }
+
+    // Dash-mekanik på Mellanslag (Space)
     if (Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
-      if (this.stamina >= this.rollStaminaCost && !this.isRolling) {
-        this.performRoll();
+      if (!this.isDashing && this.dashCooldownTimer <= 0) {
+        this.performDash();
         return;
       }
     }
@@ -270,118 +331,118 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
-  performRoll() {
-    this.isRolling = true;
-    this.isInvulnerable = true;
-    this.rollTimer = 0;
+  performDash() {
+    this.isDashing = true;
+    this.isInvulnerable = true; // Fulla i-frames under hela dashen
+    this.dashTimer = 0;
+    this.dashDuration = COMBAT_CONFIG.dashDuration || 0.20;
+    this.dashCooldownTimer = COMBAT_CONFIG.dashCooldown || 0.95;
     this.afterimageTimer = 0;
-    this.isSprinting = false;
 
-    // Consume 15% stamina
-    this.stamina = Math.max(0, this.stamina - this.rollStaminaCost);
-    // Pause stamina regeneration for 0.6 seconds
-    this.staminaRegenDelayTimer = 0.6;
+    // Uthållighetskostnad (om konfigurerad)
+    if (COMBAT_CONFIG.dashStaminaCost > 0) {
+      this.stamina = Math.max(0, this.stamina - COMBAT_CONFIG.dashStaminaCost);
+      this.staminaRegenDelayTimer = 0.5;
+    }
 
-    // Determine roll direction: current movement or last facing direction
+    // Bestäm dash-riktning:
+    // Om spelaren rör sig (WASD), dasha i nuvarande rörelseriktning
+    // Om spelaren står stilla, dasha mot muspekaren
     if (this.isMoving && this.moveVector.lengthSq() > 0) {
-      this.rollDirection.copy(this.moveVector).normalize();
+      this.dashDirection.copy(this.moveVector).normalize();
     } else {
-      this.rollDirection.copy(this.lastFacingVector).normalize();
+      this.dashDirection.set(Math.cos(this.aimAngle), Math.sin(this.aimAngle)).normalize();
     }
 
-    // Orientation flip
-    if (this.rollDirection.x < -0.1) {
-      this.setFlipX(true);
-    } else if (this.rollDirection.x > 0.1) {
-      this.setFlipX(false);
+    // Spelaren fortsätter alltid sikta och titta mot musen
+    this.setFlipX(Math.cos(this.aimAngle) < 0);
+
+    // Initial hastighet
+    this.vx = this.dashDirection.x * (COMBAT_CONFIG.dashSpeed || 640);
+    this.vy = this.dashDirection.y * (COMBAT_CONFIG.dashSpeed || 640);
+
+    // Damm och omedelbar cyan afterimage
+    if (this.dustEmitter) {
+      this.dustEmitter.emitParticleAt(this.x, this.y + 16, 5);
     }
-
-    // Initial roll velocity impulse
-    this.vx = this.rollDirection.x * this.rollSpeed;
-    this.vy = this.rollDirection.y * this.rollSpeed;
-
-    // Initial roll dust puff
-    this.dustEmitter.emitParticleAt(this.x, this.y + 16, 5);
-    this.createAfterimage();
+    this.createDashAfterimage();
   }
 
-  updateRoll(dt) {
-    this.rollTimer += dt;
-    const progress = Math.min(1, this.rollTimer / this.rollDuration);
+  performRoll() {
+    this.performDash();
+  }
 
-    // i-Frames active during first 75% of roll
-    this.isInvulnerable = progress < 0.75;
+  updateDash(dt) {
+    this.dashTimer += dt;
 
-    // Deceleration curve from rollSpeed towards baseSpeed
-    const currentRollSpeed = Phaser.Math.Linear(
-      this.rollSpeed,
-      this.baseSpeed * 0.7,
-      Math.pow(progress, 1.3)
-    );
+    // Spelaren har 100% i-frames under hela dashen (0.2s)
+    this.isInvulnerable = true;
 
-    const dx = this.rollDirection.x * currentRollSpeed * dt;
-    const dy = this.rollDirection.y * currentRollSpeed * dt;
+    // Blixtsnabb förflyttning med kollisionshantering
+    const dashSpeed = COMBAT_CONFIG.dashSpeed || 640;
+    const dx = this.dashDirection.x * dashSpeed * dt;
+    const dy = this.dashDirection.y * dashSpeed * dt;
     this.moveWithCollision(dx, dy);
 
-    // 360-degree somersault spin in roll direction
-    const spinDir = this.rollDirection.x < 0 ? -1 : 1;
-    this.setRotation(spinDir * progress * Math.PI * 2);
-
-    // Ball tuck / squash effect
-    const tuck = 1 - 0.22 * Math.sin(progress * Math.PI);
-    this.setScale(this.baseScale * tuck, this.baseScale * tuck);
-
-    // Spawn afterimage trail
+    // Skapa cyan spektral afterimage trail
     this.afterimageTimer += dt;
-    if (this.afterimageTimer >= 0.07) {
+    if (this.afterimageTimer >= 0.045) {
       this.afterimageTimer = 0;
-      this.createAfterimage();
+      this.createDashAfterimage();
     }
 
-    // Conclude roll
-    if (this.rollTimer >= this.rollDuration) {
-      this.isRolling = false;
+    // Avsluta dash efter exakt 0.2 sekunder
+    if (this.dashTimer >= this.dashDuration) {
+      this.isDashing = false;
       this.isInvulnerable = false;
       this.setRotation(0);
       this.setScale(this.baseScale, this.baseScale);
-      this.dustEmitter.emitParticleAt(this.x, this.y + 16, 4);
-      this.play('player_idle', true);
-
-      // Decelerate smoothly
-      this.vx = this.rollDirection.x * this.baseSpeed * 0.5;
-      this.vy = this.rollDirection.y * this.baseSpeed * 0.5;
+      if (this.dustEmitter) {
+        this.dustEmitter.emitParticleAt(this.x, this.y + 16, 4);
+      }
+      this.vx = this.dashDirection.x * this.runSpeed;
+      this.vy = this.dashDirection.y * this.runSpeed;
     }
   }
 
-  createAfterimage() {
+  updateRoll(dt) {
+    this.updateDash(dt);
+  }
+
+  createDashAfterimage() {
     const frame = this.anims.currentFrame ? this.anims.currentFrame.textureFrame : 0;
     const ghost = this.scene.add.sprite(this.x, this.y, 'player_knight', frame);
     ghost.setFlipX(this.flipX);
     ghost.setRotation(this.rotation);
     ghost.setScale(this.scaleX, this.scaleY);
-    ghost.setAlpha(0.5);
-    ghost.setTint(0x7799bb); // Ghostly phantom tint
+    ghost.setAlpha(0.65);
+    ghost.setTint(0x38bdf8); // Cyan spectral tint (Tiny Rogues style)
     ghost.setDepth(this.depth - 1);
 
     this.scene.tweens.add({
       targets: ghost,
       alpha: 0,
-      scaleX: ghost.scaleX * 0.9,
-      scaleY: ghost.scaleY * 0.9,
-      duration: 250,
-      ease: 'Sine.easeOut',
+      scaleX: ghost.scaleX * 0.92,
+      scaleY: ghost.scaleY * 0.92,
+      duration: 220,
+      ease: 'Cubic.easeOut',
       onComplete: () => {
         ghost.destroy();
       },
     });
   }
 
+  createAfterimage() {
+    this.createDashAfterimage();
+  }
+
   tryAttack(pointer) {
-    if (this.health <= 0 || this.isRolling || this.isAttacking || this.attackCooldownTimer > 0) {
+    if (this.health <= 0 || this.isDead || this.isDashing || this.attackCooldownTimer > 0) {
       return;
     }
 
-    if (this.stamina < this.attackStaminaCost) {
+    const staminaCost = COMBAT_CONFIG.attackStaminaCost || 0;
+    if (staminaCost > 0 && this.stamina < staminaCost) {
       return;
     }
 
@@ -391,149 +452,107 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   performAttack(pointer) {
     this.isAttacking = true;
     this.attackTimer = 0;
-    this.attackDuration = 0.67; // 10 frames @ 15fps
-    this.isSprinting = false;
+    const weapon = this.currentWeapon;
+    const speed = (weapon && weapon.attackSpeed) || COMBAT_CONFIG.attackSpeed || 3.5;
+    this.attackCooldownTimer = 1 / speed;
+    this.attackDuration = Math.min(0.22, 0.48 / speed); // Anpassad efter vapnets hastighet
     this.currentSwingId++;
-    this.hasTriggeredSmash = false;
-    this.hasSpawnedReachIndicator = false;
 
-    // Deduct stamina and pause regen
-    this.stamina = Math.max(0, this.stamina - this.attackStaminaCost);
-    this.staminaRegenDelayTimer = 0.6;
+    const staminaCost = (weapon && weapon.attackStaminaCost !== undefined) ? weapon.attackStaminaCost : (COMBAT_CONFIG.attackStaminaCost || 0);
+    if (staminaCost > 0) {
+      this.stamina = Math.max(0, this.stamina - staminaCost);
+      this.staminaRegenDelayTimer = 0.4;
+    }
 
-    // Calculate angle towards mouse world position
+    // Uppdatera vinkel mot muspekaren
     const targetX = pointer.worldX;
     const targetY = pointer.worldY;
-    this.attackAngle = Phaser.Math.Angle.Between(this.x, this.y, targetX, targetY);
+    this.aimAngle = Phaser.Math.Angle.Between(this.x, this.y, targetX, targetY);
+    this.setFlipX(Math.cos(this.aimAngle) < 0);
 
-    // Face orientation towards mouse
-    const isFacingLeft = Math.cos(this.attackAngle) < 0;
-    this.setFlipX(isFacingLeft);
-    this.lastFacingVector.set(Math.cos(this.attackAngle), Math.sin(this.attackAngle));
+    // Skapa svepande träffbåge / projektil mot musen
+    const slash = new SlashArc(this.scene, this, this.aimAngle);
+    if (this.scene.slashes) {
+      this.scene.slashes.add(slash);
+    }
 
-    // Play two-handed overhead hammer strike animation (Rad 3, frames 20-29)
+    // Spela snabb attack-animation
     this.play('player_attack', true);
 
-    // Initial forward lunge impulse
-    const lungeSpeed = 160;
-    this.vx = Math.cos(this.attackAngle) * lungeSpeed;
-    this.vy = Math.sin(this.attackAngle) * lungeSpeed;
-
-    // Dust at feet from forceful footwork
-    this.dustEmitter.emitParticleAt(this.x, this.y + 16, 3);
-  }
-
-  spawnReachIndicator(angle) {
-    const isFacingLeft = Math.cos(angle) < 0;
-    const handX = this.x + (isFacingLeft ? -8 : 8);
-    const handY = this.y + 1;
-
-    // The arc originates from the hammer head (~36px from hand) and extends ~0.5 cm (19px) outside the model (55px)
-    const arc = this.scene.add.sprite(handX, handY, 'reach_arc');
-    arc.setOrigin(0.5, 0.5);
-    arc.setRotation(angle);
-
-    arc.setScale(1.0, isFacingLeft ? -1.0 : 1.0);
-    arc.setAlpha(0.98);
-    arc.setDepth(this.depth + 3);
-
-    // Sweeping flare from hammer head and smooth fade
-    this.scene.tweens.add({
-      targets: arc,
-      alpha: 0,
-      scaleX: 1.06,
-      scaleY: isFacingLeft ? -1.06 : 1.06,
-      duration: 260,
-      ease: 'Cubic.easeOut',
-      onComplete: () => {
-        arc.destroy();
-      },
-    });
-  }
-
-  triggerHammerImpact() {
-    // Calculate impact epicenter at the hammer head's landing position
-    const impactDist = 48;
-    const impactX = this.x + Math.cos(this.attackAngle) * impactDist;
-    const impactY = this.y + Math.sin(this.attackAngle) * impactDist;
-
-    // Expanding stone fracture shockwave ring
-    const wave = this.scene.add.sprite(impactX, impactY, 'hammer_shockwave');
-    wave.setScale(0.25);
-    wave.setAlpha(0.95);
-    wave.setDepth(this.depth - 1);
-    this.scene.tweens.add({
-      targets: wave,
-      scaleX: 1.25,
-      scaleY: 1.25,
-      alpha: 0,
-      duration: 320,
-      ease: 'Cubic.easeOut',
-      onComplete: () => wave.destroy(),
-    });
-
-    // Dust explosion at impact site
-    this.dustEmitter.emitParticleAt(impactX, impactY, 8);
-
-    // Fiery cinders / sparks from crushed stone
-    const sparkCount = 8;
-    for (let i = 0; i < sparkCount; i++) {
-      const sparkAngle = this.attackAngle + (Math.random() - 0.5) * 1.6;
-      const speed = Phaser.Math.Between(70, 180);
-      const spark = this.scene.add.particles(impactX, impactY, 'ember_spark', {
-        speed: { min: speed * 0.6, max: speed },
-        angle: { min: Phaser.Math.RadToDeg(sparkAngle) - 15, max: Phaser.Math.RadToDeg(sparkAngle) + 15 },
-        scale: { start: 1.1, end: 0 },
-        alpha: { start: 0.95, end: 0 },
-        lifespan: 260,
-        frequency: -1,
-      });
-      spark.emitParticle(1);
-      spark.setDepth(this.depth + 3);
-      this.scene.time.delayedCall(280, () => spark.destroy());
-    }
+    // Litet mikrosteg framåt i siktets riktning (mindre för magi/snabba dolkar)
+    const nudge = (weapon && weapon.type === 'magic') ? 10 : (speed > 4 ? 18 : 36);
+    this.vx += Math.cos(this.aimAngle) * nudge;
+    this.vy += Math.sin(this.aimAngle) * nudge;
   }
 
   updateAttack(dt) {
     this.attackTimer += dt;
-    const progress = Math.min(1, this.attackTimer / this.attackDuration);
-
-    // Decelerate lunge smoothly
-    const currentLunge = Phaser.Math.Linear(150, 0, Math.pow(progress, 1.4));
-    const dx = Math.cos(this.attackAngle) * currentLunge * dt;
-    const dy = Math.sin(this.attackAngle) * currentLunge * dt;
-    this.moveWithCollision(dx, dy);
-
-    // Reach arc indicator sweeps forward as hammer is brought overhead down (progress ~0.60)
-    if (progress >= 0.60 && !this.hasSpawnedReachIndicator) {
-      this.hasSpawnedReachIndicator = true;
-      this.spawnReachIndicator(this.attackAngle);
-    }
-
-    // Heavy hammer ground impact at apex of downward smash (progress ~0.80)
-    if (progress >= 0.80 && !this.hasTriggeredSmash) {
-      this.hasTriggeredSmash = true;
-      this.triggerHammerImpact();
-    }
-
     if (this.attackTimer >= this.attackDuration) {
       this.isAttacking = false;
-      this.setRotation(0);
-      this.setScale(this.baseScale, this.baseScale);
-      this.play('player_idle', true);
-      this.attackCooldownTimer = 0.12; // Recovery window before next attack
+      if (this.isMoving) {
+        this.anims.play('player_run', true);
+      } else {
+        this.anims.play('player_idle', true);
+      }
     }
   }
 
   isPointInAttackCone(targetX, targetY) {
-    if (!this.isAttacking || this.attackTimer < this.attackDuration * 0.40) return false;
+    const weapon = this.currentWeapon;
+    const maxRange = (weapon && weapon.range) || COMBAT_CONFIG.attackRange || 85;
+    const maxArcDeg = (weapon && weapon.attackArcWidth) || COMBAT_CONFIG.attackArcWidth || 105;
 
     const dist = Phaser.Math.Distance.Between(this.x, this.y, targetX, targetY);
-    if (dist > this.attackRange) return false;
+    if (dist > maxRange) return false;
 
     const targetAngle = Phaser.Math.Angle.Between(this.x, this.y, targetX, targetY);
-    let diff = Phaser.Math.Angle.Wrap(targetAngle - this.attackAngle);
-    return Math.abs(diff) <= this.attackArc / 2;
+    let diff = Phaser.Math.Angle.Wrap(targetAngle - this.aimAngle);
+    return Math.abs(diff) <= Phaser.Math.DegToRad(maxArcDeg) / 2;
+  }
+
+  /**
+   * Byter spelarens aktiva vapen mot ett vapen från registret i src/data/weapons.js.
+   *
+   * @param {string} weaponId ID för vapnet (t.ex. 'warhammer', 'greatsword', 'scimitar', 'dagger', 'staff')
+   * @returns {boolean} true om vapnet utrustades framgångsrikt
+   */
+  equipWeapon(weaponId) {
+    const weapon = WEAPONS[weaponId];
+    if (!weapon) {
+      console.warn(`[Weapons] Vapen med ID "${weaponId}" finns inte i registret.`);
+      return false;
+    }
+
+    this.currentWeapon = weapon;
+
+    // Uppdatera synligt vapen
+    const ws = this.weaponSprite || this.hammer;
+    if (ws) {
+      ws.setTexture(weapon.sprite);
+      ws.setOrigin(weapon.origin.x, weapon.origin.y);
+      this.weaponScale = weapon.scale;
+      ws.setScale(weapon.scale);
+      ws.setVisible(true);
+      if (ws.clearTint) ws.clearTint();
+
+      // Kort visuell puls vid vapenbyte
+      if (this.scene) {
+        this.scene.tweens.add({
+          targets: ws,
+          scaleX: weapon.scale * 1.35,
+          scaleY: (this.flipX ? -1 : 1) * weapon.scale * 1.35,
+          duration: 160,
+          yoyo: true,
+          ease: 'Quad.easeOut',
+        });
+      }
+    }
+
+    // Visuell flytande text-notis
+    const icon = weapon.type === 'magic' ? '✨' : (weapon.type === 'ranged' ? '🏹' : '⚔️');
+    this.showFloatingText(`${icon} ${weapon.name}`, weapon.slashColor || 0xfacc15);
+
+    return true;
   }
 
   drink_flask() {
@@ -672,27 +691,20 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     // Red damage tint
     this.setTint(0xff2222);
     this.scene.time.delayedCall(160, () => {
-      if (this.health > 0) this.clearTint();
+      this.clearTint();
     });
 
     if (this.health <= 0) {
       this.isDead = true;
       this.play('player_death', true);
       this.body.setVelocity(0, 0);
+      if (this.hammer) {
+        this.hammer.setVisible(false);
+      }
       if (this.scene && typeof this.scene.handlePlayerDeath === 'function') {
         this.scene.handlePlayerDeath();
       }
     }
-
-    // Sparks / blood puff
-    this.scene.add.particles(this.x, this.y + 8, 'ember_spark', {
-      speed: { min: 60, max: 150 },
-      scale: { start: 1, end: 0 },
-      alpha: { start: 0.9, end: 0 },
-      lifespan: 220,
-      quantity: 6,
-      blendMode: 'ADD',
-    });
 
     // Soulsborne camera shake on hit
     this.scene.cameras.main.shake(160, 0.007);
@@ -772,13 +784,6 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       targetVx = this.moveVector.x * this.currentSpeed;
       targetVy = this.moveVector.y * this.currentSpeed;
 
-      // Vänd spriten horisontellt vid rörelse vänster / höger
-      if (this.moveVector.x < -0.1) {
-        this.setFlipX(true);
-      } else if (this.moveVector.x > 0.1) {
-        this.setFlipX(false);
-      }
-
       // Fotstegsdamm
       this.dustTimer += dt;
       const dustInterval = this.isSprinting ? 0.12 : 0.22;
@@ -803,19 +808,21 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   handleAnimation(dt) {
-    if (this.health <= 0 || this.isRolling || this.isAttacking) {
-      return; // Handled by death, roll or attack states
+    if (this.health <= 0 || this.isDashing) {
+      return;
+    }
+
+    // Snabb attack-animation visas när spelaren nyss svingat
+    if (this.isAttacking && this.attackTimer < this.attackDuration) {
+      return;
     }
 
     if (this.isMoving) {
-      // Run: 8-frame springcykel med benrörelser (Frames 10 till 17) med hög, jämn FPS
+      this.walkCycle += dt * 10;
       this.anims.play('player_run', true);
-
-      // Spritarna har redan naturlig framåtlutning och stegrörelse ritad i bildrutorna
       this.setRotation(0);
       this.setScale(this.baseScale, this.baseScale);
     } else {
-      // Idle: Rad 1 (Frames 0-9)
       this.walkCycle = 0;
       this.anims.play('player_idle', true);
       this.setRotation(0);
@@ -824,48 +831,103 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   updateWeapon(dt) {
-    if (!this.hammer) return;
+    const ws = this.weaponSprite || this.hammer;
+    if (!ws || !ws.visible) return;
 
-    if (this.isRolling) {
-      const spinDir = this.rollDirection.x < 0 ? -1 : 1;
-      this.hammer.setPosition(this.x, this.y);
-      this.hammer.setRotation(this.rotation - (spinDir * 0.4));
-      const tuck = 1 - 0.22 * Math.sin((this.rollTimer / this.rollDuration) * Math.PI);
-      const dirScale = this.rollDirection.x < 0 ? -this.hammerScale : this.hammerScale;
-      this.hammer.setScale(dirScale * tuck, this.hammerScale * tuck);
-      this.hammer.setDepth(this.depth + 1);
-    } else if (!this.isAttacking) {
-      const handOffsetX = this.flipX ? -8 : 8;
-      const handOffsetY = 1;
-      this.hammer.setPosition(this.x + handOffsetX, this.y + handOffsetY);
-      
-      const idleBaseAngle = this.flipX ? 2.45 : -0.75;
+    if (this.health <= 0 || this.isDead) {
+      ws.setVisible(false);
+      return;
+    }
+
+    const weapon = this.currentWeapon;
+    const baseOffset = (weapon && weapon.baseAngleOffset !== undefined) ? weapon.baseAngleOffset : Math.PI / 4;
+    const scale = (weapon && weapon.scale) || this.weaponScale || 2.4;
+
+    const isFacingLeft = Math.cos(this.aimAngle) < 0;
+    const sign = isFacingLeft ? -1 : 1;
+
+    // Fästpunkt vid spelarens hand
+    const handX = this.x + (isFacingLeft ? -7 : 7);
+    const handY = this.y + 3;
+
+    if (this.isDashing) {
+      // Under dash: håll vapnet nära kroppen, riktat framåt
+      ws.setPosition(handX, handY);
+      const dashAngle = this.aimAngle + (isFacingLeft ? -0.2 : 0.2);
+      if (!isFacingLeft) {
+        ws.setScale(scale * 0.92, scale * 0.92);
+        ws.setRotation(dashAngle + baseOffset);
+      } else {
+        ws.setScale(scale * 0.92, -scale * 0.92);
+        ws.setRotation(dashAngle - baseOffset);
+      }
+      ws.setDepth(this.depth + 1);
+      return;
+    }
+
+    if (this.isAttacking) {
+      // Melee-sving / stöt: sveper kraftfullt genom en båge mot siktet
+      const progress = Math.min(1, this.attackTimer / this.attackDuration);
+      const ease = Math.sin(progress * Math.PI * 0.5);
+      const swingOffset = Phaser.Math.Linear(-1.15, 0.95, ease) * sign;
+      const currentAngle = this.aimAngle + swingOffset;
+
+      const extension = Math.sin(progress * Math.PI) * (weapon && weapon.attackSpeed > 4 ? 8 : 4);
+      const swingX = handX + Math.cos(this.aimAngle) * extension;
+      const swingY = handY + Math.sin(this.aimAngle) * extension;
+
+      ws.setPosition(swingX, swingY);
+
+      if (!isFacingLeft) {
+        ws.setScale(scale, scale);
+        ws.setRotation(currentAngle + baseOffset);
+      } else {
+        ws.setScale(scale, -scale);
+        ws.setRotation(currentAngle - baseOffset);
+      }
+      ws.setDepth(this.depth + 1);
+    } else {
+      // Idle / Gång: hålls i händerna mot muspekaren med naturligt svaj och steg-studs
+      const restOffset = -0.35 * sign;
       const sway = this.isMoving
-        ? Math.sin(this.walkCycle) * 0.14
-        : Math.sin(this.scene.time.now * 0.003) * 0.05;
-      
-      this.hammer.setRotation(idleBaseAngle + sway);
-      this.hammer.setScale(this.flipX ? -this.hammerScale : this.hammerScale, this.hammerScale);
-      this.hammer.setDepth(this.depth + 1);
+        ? Math.sin(this.walkCycle * 2) * 0.12 * sign
+        : Math.sin(this.scene.time.now * 0.004) * 0.05;
+
+      const currentAngle = this.aimAngle + restOffset + sway;
+      const bobY = this.isMoving ? Math.sin(this.walkCycle * 2) * 1.2 : 0;
+
+      ws.setPosition(handX, handY + bobY);
+
+      if (!isFacingLeft) {
+        ws.setScale(scale, scale);
+        ws.setRotation(currentAngle + baseOffset);
+      } else {
+        ws.setScale(scale, -scale);
+        ws.setRotation(currentAngle - baseOffset);
+      }
+      ws.setDepth(this.depth + 1);
     }
   }
 
   updateLight() {
     if (this.lightSource) {
-      this.lightSource.setPosition(this.x, this.y + 6);
+      this.lightSource.setPosition(this.x, this.y + 4);
       this.lightSource.setDepth(Math.max(1, this.depth - 1));
     }
   }
 
   destroy(fromScene) {
+    if (this.onKeyDownPreventDefaults) {
+      window.removeEventListener('keydown', this.onKeyDownPreventDefaults);
+    }
     if (this.scene && this.scene.input && this.pointerDownListener) {
       this.scene.input.off('pointerdown', this.pointerDownListener);
     }
     if (this.shadow) {
       this.shadow.destroy();
     }
-    if (this.hammer) {
-      this.hammer.destroy();
+    if (this.weaponSprite) {
+      this.weaponSprite.destroy();
     }
     if (this.lightSource) {
       this.lightSource.destroy();

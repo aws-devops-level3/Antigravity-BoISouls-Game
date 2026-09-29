@@ -127,8 +127,8 @@ export default class SkeletonEnemy extends Phaser.Physics.Arcade.Sprite {
     this.maxHealth = 50;
     this.health = 50;
     this.attackDamage = 16;
-    this.patrolSpeed = 38;
-    this.repositionSpeed = 65;
+    this.patrolSpeed = 44;
+    this.repositionSpeed = 75;
     this.detectionRadius = 420;
     this.attackRange = 360;
     this.minRetreatRange = 110;
@@ -406,7 +406,7 @@ export default class SkeletonEnemy extends Phaser.Physics.Arcade.Sprite {
     this.state = SkeletonState.AIM_AND_POSITION;
   }
 
-  takeDamage(amount, sourceX, sourceY) {
+  takeDamage(amount, sourceX, sourceY, customKbForce) {
     if (this.state === SkeletonState.DEAD) return;
 
     this.health = Math.max(0, this.health - amount);
@@ -423,20 +423,9 @@ export default class SkeletonEnemy extends Phaser.Physics.Arcade.Sprite {
       }
     });
 
-    // Bone splinter hit particles
-    this.scene.add.particles(this.x, this.y + 10, 'ember_spark', {
-      speed: { min: 80, max: 190 },
-      scale: { start: 1, end: 0 },
-      alpha: { start: 1, end: 0 },
-      tint: [0xf5efe6, 0xd4af37, 0xeb4d4b],
-      lifespan: 260,
-      quantity: 9,
-      blendMode: 'ADD',
-    });
-
     // Knockback
     const kbAngle = Phaser.Math.Angle.Between(sourceX, sourceY, this.x, this.y);
-    const kbForce = 140;
+    const kbForce = customKbForce !== undefined ? customKbForce : 140;
     this.body.setVelocity(
       Math.cos(kbAngle) * kbForce,
       Math.sin(kbAngle) * kbForce
@@ -475,32 +464,22 @@ export default class SkeletonEnemy extends Phaser.Physics.Arcade.Sprite {
       this.scene.player.addSouls(this.soulsReward);
     }
 
-    // Death fade & bone scatter
+    // Death fade
     this.scene.tweens.add({
       targets: this,
       alpha: 0,
       scaleX: this.baseScale * 0.55,
       scaleY: this.baseScale * 0.55,
-      duration: 500,
+      duration: 400,
       ease: 'Sine.easeOut',
       onComplete: () => {
-        this.emitDeathBones();
         this.destroy();
       },
     });
   }
 
   emitDeathBones() {
-    const soulParticles = this.scene.add.particles(this.x, this.y, 'ember_spark', {
-      speed: { min: 40, max: 120 },
-      scale: { start: 1.2, end: 0.1 },
-      alpha: { start: 1, end: 0 },
-      lifespan: 800,
-      quantity: 15,
-      blendMode: 'ADD',
-      tint: [0xffd700, 0xf5efe6],
-    });
-    this.scene.time.delayedCall(850, () => soulParticles.destroy());
+    // Orange death glow particles removed
   }
 
   showAggroAlert() {

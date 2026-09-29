@@ -33,8 +33,8 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.maxHealth = 70;
     this.health = 70;
     this.attackDamage = 20;
-    this.patrolSpeed = 45;
-    this.chaseSpeed = 120;
+    this.patrolSpeed = 52;
+    this.chaseSpeed = 138;
     this.detectionRadius = 280;
     this.attackRange = 48;
     this.soulsReward = 250;
@@ -240,8 +240,8 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.clearTint();
     this.setScale(this.baseScale);
 
-    // Forward lunge
-    const lungeSpeed = 160;
+    // Forward lunge (+15% speed)
+    const lungeSpeed = 184;
     this.body.setVelocity(
       Math.cos(this.attackAngle) * lungeSpeed,
       Math.sin(this.attackAngle) * lungeSpeed
@@ -312,7 +312,7 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
-  takeDamage(amount, sourceX, sourceY) {
+  takeDamage(amount, sourceX, sourceY, customKbForce) {
     if (this.state === EnemyState.DEAD) return;
 
     this.health = Math.max(0, this.health - amount);
@@ -329,19 +329,9 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
       }
     });
 
-    // Hit particle sparks
-    this.scene.add.particles(this.x, this.y + 10, 'ember_spark', {
-      speed: { min: 80, max: 180 },
-      scale: { start: 1, end: 0 },
-      alpha: { start: 1, end: 0 },
-      lifespan: 250,
-      quantity: 8,
-      blendMode: 'ADD',
-    });
-
     // Knockback
     const kbAngle = Phaser.Math.Angle.Between(sourceX, sourceY, this.x, this.y);
-    const kbForce = 150;
+    const kbForce = customKbForce !== undefined ? customKbForce : 150;
     this.body.setVelocity(
       Math.cos(kbAngle) * kbForce,
       Math.sin(kbAngle) * kbForce
@@ -382,34 +372,24 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.scene.player.addSouls(this.soulsReward);
     }
 
-    // Death fade & soul particles
+    // Death fade
     this.scene.tweens.add({
       targets: this,
       alpha: 0,
       scaleX: this.baseScale * 0.6,
       scaleY: this.baseScale * 0.6,
-      duration: 500,
+      duration: 400,
       ease: 'Sine.easeOut',
       onComplete: () => {
-        // Golden soul orbs dispersing
-        this.emitDeathSouls();
         this.destroy();
       },
     });
   }
 
   emitDeathSouls() {
-    const soulParticles = this.scene.add.particles(this.x, this.y, 'ember_spark', {
-      speed: { min: 40, max: 110 },
-      scale: { start: 1.2, end: 0.1 },
-      alpha: { start: 1, end: 0 },
-      lifespan: 800,
-      quantity: 14,
-      blendMode: 'ADD',
-      tint: 0xffd700, // Golden souls
-    });
-    this.scene.time.delayedCall(850, () => soulParticles.destroy());
+    // Orange glow particles removed upon death
   }
+
 
   showAggroAlert() {
     // Menacing red eye flash

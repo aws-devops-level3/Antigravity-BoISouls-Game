@@ -34,8 +34,8 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
     this.maxHealth = 45;
     this.health = 45;
     this.attackDamage = 15;
-    this.patrolSpeed = 50;
-    this.chaseSpeed = 135; // Swift spectral glide
+    this.patrolSpeed = 58;
+    this.chaseSpeed = 155; // Swift spectral glide (+15% speed)
     this.detectionRadius = 320;
     this.attackRange = 52;
     this.soulsReward = 180;
@@ -238,8 +238,8 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
     this.setScale(this.baseScale);
     this.setAlpha(0.95);
 
-    // Fast phantom claw thrust
-    const rushSpeed = 220;
+    // Fast phantom claw thrust (+15% speed)
+    const rushSpeed = 253;
     this.body.setVelocity(
       Math.cos(this.attackAngle) * rushSpeed,
       Math.sin(this.attackAngle) * rushSpeed
@@ -309,7 +309,7 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
-  takeDamage(amount, sourceX, sourceY) {
+  takeDamage(amount, sourceX, sourceY, customKbForce) {
     if (this.state === GhostState.DEAD) return;
 
     this.health = Math.max(0, this.health - amount);
@@ -329,20 +329,9 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
       }
     });
 
-    // Spectral sparks
-    this.scene.add.particles(this.x, this.y + 8, 'ember_spark', {
-      speed: { min: 70, max: 170 },
-      scale: { start: 1, end: 0 },
-      alpha: { start: 1, end: 0 },
-      lifespan: 250,
-      quantity: 8,
-      blendMode: 'ADD',
-      tint: 0xaaccff,
-    });
-
     // Knockback
     const kbAngle = Phaser.Math.Angle.Between(sourceX, sourceY, this.x, this.y);
-    const kbForce = 180;
+    const kbForce = customKbForce !== undefined ? customKbForce : 180;
     this.body.setVelocity(
       Math.cos(kbAngle) * kbForce,
       Math.sin(kbAngle) * kbForce
@@ -381,32 +370,22 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
       this.scene.player.addSouls(this.soulsReward);
     }
 
-    // Dissolve into spirit smoke and golden souls
+    // Dissolve into spirit smoke
     this.scene.tweens.add({
       targets: this,
       alpha: 0,
       scaleX: this.baseScale * 1.5,
       scaleY: this.baseScale * 0.3,
-      duration: 450,
+      duration: 400,
       ease: 'Sine.easeOut',
       onComplete: () => {
-        this.emitDeathSouls();
         this.destroy();
       },
     });
   }
 
   emitDeathSouls() {
-    const soulParticles = this.scene.add.particles(this.x, this.y, 'ember_spark', {
-      speed: { min: 30, max: 100 },
-      scale: { start: 1.2, end: 0.1 },
-      alpha: { start: 1, end: 0 },
-      lifespan: 800,
-      quantity: 12,
-      blendMode: 'ADD',
-      tint: 0xffd700,
-    });
-    this.scene.time.delayedCall(850, () => soulParticles.destroy());
+    // Orange death glow particles removed
   }
 
   showAggroAlert() {
