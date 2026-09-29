@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import audioManager from '../utils/AudioManager.js';
 
 export default class SoulsHUD {
   constructor(scene) {
@@ -93,10 +94,82 @@ export default class SoulsHUD {
     }).setOrigin(0.5, 0);
     this.estusContainer.add(this.estusLabel);
 
+    // Audio status & toggle button in top right
+    this.createAudioToggle();
+
     // Resize listener to keep HUD anchored
     this.scene.scale.on('resize', (gameSize) => {
       this.soulContainer.setPosition(gameSize.width - 180, gameSize.height - 48);
       this.estusContainer.setPosition(75, 129);
+      if (this.audioContainer) {
+        this.audioContainer.setPosition(gameSize.width - 105, 30);
+      }
+    });
+  }
+
+  createAudioToggle() {
+    const startX = this.scene.cameras.main.width - 105;
+    const startY = 30;
+
+    this.audioContainer = this.scene.add.container(startX, startY);
+    this.audioContainer.setScrollFactor(0);
+    this.audioContainer.setDepth(1001);
+
+    const bg = this.scene.add.graphics();
+    const isBoss = () => audioManager.currentTrackKey === 'boss_music';
+    const drawBg = (hover = false) => {
+      bg.clear();
+      const boss = isBoss();
+      const bgColor = hover ? (boss ? 0x2b0f14 : 0x1f192b) : (boss ? 0x180509 : 0x090710);
+      const borderColor = hover ? (boss ? 0xff4d6d : 0xd4af37) : (boss ? 0x9b1c2e : 0x7c6a46);
+      bg.fillStyle(bgColor, hover ? 0.95 : 0.85);
+      bg.fillRoundedRect(-65, -13, 130, 26, 6);
+      bg.lineStyle(hover ? 1.6 : 1.2, borderColor, hover ? 1 : 0.85);
+      bg.strokeRoundedRect(-65, -13, 130, 26, 6);
+    };
+    drawBg(false);
+    this.audioContainer.add(bg);
+
+    const formatText = () => {
+      if (audioManager.isMuted) return '♫ [N] MUSIK: AV';
+      return isBoss() ? '⚔ [N] BOSS: PÅ' : '♫ [N] MUSIK: PÅ';
+    };
+    const formatColor = () => {
+      if (audioManager.isMuted) return '#888888';
+      return isBoss() ? '#ff758f' : '#e2d3af';
+    };
+
+    this.audioText = this.scene.add.text(0, 0, formatText(), {
+      fontFamily: 'Cinzel, serif',
+      fontSize: '11px',
+      fontStyle: 'bold',
+      color: formatColor(),
+      stroke: '#000000',
+      strokeThickness: 2,
+    }).setOrigin(0.5);
+    this.audioContainer.add(this.audioText);
+
+    this.audioContainer.setSize(130, 26);
+    this.audioContainer.setInteractive({ useHandCursor: true });
+
+    this.audioContainer.on('pointerdown', () => {
+      audioManager.toggleMute();
+    });
+
+    this.audioContainer.on('pointerover', () => {
+      drawBg(true);
+    });
+
+    this.audioContainer.on('pointerout', () => {
+      drawBg(false);
+    });
+
+    audioManager.onStateChange(({ isMuted }) => {
+      if (this.audioText && this.audioText.active) {
+        drawBg(false);
+        this.audioText.setText(formatText());
+        this.audioText.setColor(formatColor());
+      }
     });
   }
 

@@ -11,6 +11,7 @@ import DD2VTTParser from '../utils/DD2VTTParser.js';
 import { getMapConfig, MAP_CONFIGS } from '../data/MapConfig.js';
 import CollisionManager from '../utils/CollisionManager.js';
 import { MAP_OBSTACLES, obstacles as defaultObstacles } from '../data/obstacles.js';
+import audioManager from '../utils/AudioManager.js';
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
@@ -145,6 +146,15 @@ export default class GameScene extends Phaser.Scene {
     this.input.keyboard.on('keydown-M', () => {
       this.toggleMonsters();
     });
+
+    // Tangent [N] för att slå av/på bakgrundsmusik
+    this.input.keyboard.on('keydown-N', () => {
+      const isPlaying = audioManager.toggleMute();
+      console.log(`[Audio] Bakgrundsmusik: ${isPlaying ? 'PÅ' : 'AV'}`);
+    });
+
+    // Bakgrundsmusik startas/fortsätter (anpassas automatiskt efter rum, t.ex. bossmusik i SoulsBossRoom1)
+    audioManager.init(this, this.currentMapKey);
 
     // Snabbväxling mellan kartor med siffrorna 1, 2, 3
     window.loadMap = (mapKey) => this.switchMap(mapKey);

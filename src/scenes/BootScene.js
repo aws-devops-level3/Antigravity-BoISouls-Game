@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { LEVELS } from '../data/LevelTransitions.js';
+import { AUDIO_CONFIG } from '../data/AudioConfig.js';
 
 export default class BootScene extends Phaser.Scene {
   constructor() {
@@ -31,6 +32,15 @@ export default class BootScene extends Phaser.Scene {
     this.load.audio('chicken_cluck', encodeURI('/assets/sounds/Chicken sounds hen clucking (1).mp3'));
     this.load.audio('blood_splat', '/assets/sounds/blood_splat.wav');
     this.load.audio('flask_drink', '/assets/sounds/flask_drink.wav');
+    // Bakgrundsmusik definierad i src/data/AudioConfig.js (med cache-busting så nya mp3-filer alltid laddas färska)
+    const cacheBust = `?t=${Date.now()}`;
+    if (AUDIO_CONFIG && AUDIO_CONFIG.bgm && AUDIO_CONFIG.bgm.path) {
+      this.load.audio(AUDIO_CONFIG.bgm.key, encodeURI(AUDIO_CONFIG.bgm.path) + cacheBust);
+    }
+    // Boss-musik för SoulsBossRoom
+    if (AUDIO_CONFIG && AUDIO_CONFIG.bossBgm && AUDIO_CONFIG.bossBgm.path) {
+      this.load.audio(AUDIO_CONFIG.bossBgm.key, encodeURI(AUDIO_CONFIG.bossBgm.path) + cacheBust);
+    }
     this.load.image('flask_red', '/assets/flask_red.png');
     this.load.image('flask_red_empty', '/assets/flask_red_empty.png');
     // Dynamically preload all registered levels and their .dd2vtt data
