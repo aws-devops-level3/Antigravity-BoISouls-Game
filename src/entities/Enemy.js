@@ -313,6 +313,7 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
   }
 
   takeDamage(amount, sourceX, sourceY, customKbForce) {
+    if (this.scene && this.scene.gameState !== 'PLAYING') return;
     if (this.state === EnemyState.DEAD) return;
 
     this.health = Math.max(0, this.health - amount);

@@ -205,6 +205,13 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   update(time, delta) {
+    if (this.scene && this.scene.gameState !== 'PLAYING') {
+      if (this.body) this.body.setVelocity(0, 0);
+      this.vx = 0;
+      this.vy = 0;
+      return;
+    }
+
     if (this.health <= 0 || this.isDead) {
       this.body.setVelocity(0, 0);
       return;
@@ -295,6 +302,15 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       this.equipWeapon('dagger');
     } else if (Phaser.Input.Keyboard.JustDown(this.keys.F5) || Phaser.Input.Keyboard.JustDown(this.keys.FIVE)) {
       this.equipWeapon('staff');
+    }
+
+    // Avbryt rörelse och dash om spelaren pratar med en NPC
+    if (this.scene && this.scene.isTalkingToNPC) {
+      this.moveVector.set(0, 0);
+      this.isMoving = false;
+      this.vx = 0;
+      this.vy = 0;
+      return;
     }
 
     // Dash-mekanik på Mellanslag (Space)
@@ -437,6 +453,9 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   tryAttack(pointer) {
+    if (this.scene && (this.scene.gameState !== 'PLAYING' || this.scene.isTalkingToNPC)) {
+      return;
+    }
     if (this.health <= 0 || this.isDead || this.isDashing || this.attackCooldownTimer > 0) {
       return;
     }
@@ -682,6 +701,9 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   takeDamage(amount) {
+    if (this.scene && this.scene.gameState !== 'PLAYING') {
+      return false;
+    }
     if (this.isInvulnerable || this.health <= 0 || this.isDead) {
       return false; // Dodged via i-frames or already dead!
     }

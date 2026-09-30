@@ -86,6 +86,9 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
       frequency: -1, // manual emit
     });
     this.mistTimer = 0;
+
+    // Aggro sound cooldown
+    this.spotSoundCooldown = 0;
   }
 
   update(time, delta, player) {
@@ -95,6 +98,10 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
 
     if (this.attackCooldownTimer > 0) {
       this.attackCooldownTimer -= dt;
+    }
+
+    if (this.spotSoundCooldown > 0) {
+      this.spotSoundCooldown -= dt;
     }
 
     if (this.hpBarTimer > 0) {
@@ -207,6 +214,7 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
     this.setFlipX(Math.cos(this.attackAngle) < 0);
 
     // Glowing red flare from eyes and shuddering wail
+    this.playSpotSound();
     this.setTint(0xff4455);
     this.scene.tweens.add({
       targets: this,
@@ -310,7 +318,12 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
   }
 
   takeDamage(amount, sourceX, sourceY, customKbForce) {
+    if (this.scene && this.scene.gameState !== 'PLAYING') return;
     if (this.state === GhostState.DEAD) return;
+
+    if (this.state === GhostState.PATROL) {
+      this.playSpotSound();
+    }
 
     this.health = Math.max(0, this.health - amount);
     this.hpBarTimer = 4.0;
@@ -388,7 +401,60 @@ export default class GhostEnemy extends Phaser.Physics.Arcade.Sprite {
     // Orange death glow particles removed
   }
 
+  playSpotSound() {
+    if (this.spotSoundCooldown > 0) return;
+    this.spotSoundCooldown = 3.0; // Cooldown för att undvika överlappande ljud-spam
+
+    if (!this.scene || !this.scene.sound) return;
+
+    try {
+      if (this.scene.sound.context && this.scene.sound.context.state === 'suspended') {
+        this.scene.sound.context.resume();
+      }
+      if (this.scene.sound.locked && typeof this.scene.sound.unlock === 'function') {
+        this.scene.sound.unlock();
+      }
+
+      let key = null;
+      if (this.scene.cache && this.scene.cache.audio) {
+        if (this.scene.cache.audio.exists('ghost_sound')) key = 'ghost_sound';
+        else if (this.scene.cache.audio.exists('GhostSound')) key = 'GhostSound';
+      }
+
+      // Volym sänkt med 15% (basvolym ~0.76 istället för 0.90)
+      let volume = 0.765;
+      if (this.scene.player) {
+        const dist = Phaser.Math.Distance.Between(this.x, this.y, this.scene.player.x, this.scene.player.y);
+        const dynamicVol = Phaser.Math.Clamp(1.0 - (dist / 650) * 0.45, 0.45, 0.95);
+        volume = dynamicVol * 0.85;
+      }
+
+      if (key) {
+        console.log(`[GhostEnemy] Spelar ghost_sound ('${key}') vid upptäckt av spelare (volym: ${volume.toFixed(2)})`);
+        this.scene.sound.play(key, { volume });
+      } else if (this.scene.load) {
+        console.warn("[GhostEnemy] 'ghost_sound' saknades i cachen. Laddar in dynamiskt och spelar upp...");
+        const bust = `?t=${Date.now()}`;
+        this.scene.load.audio('ghost_sound', [
+          `/assets/sounds/GhostSound.mp3${bust}`,
+          `/GhostSound.mp3${bust}`,
+        ]);
+        this.scene.load.once('filecomplete-audio-ghost_sound', () => {
+          console.log("[GhostEnemy] 'ghost_sound' laddades dynamiskt! Spelar nu...");
+          if (this.scene && this.scene.sound) {
+            this.scene.sound.play('ghost_sound', { volume });
+          }
+        });
+        this.scene.load.start();
+      }
+    } catch (e) {
+      console.error('[GhostEnemy] Fel vid uppspelning av GhostSound:', e);
+    }
+  }
+
   showAggroAlert() {
+    this.playSpotSound();
+
     const alert = this.scene.add.text(this.x, this.y - 48, '!', {
       fontFamily: 'Cinzel, serif',
       fontSize: '22px',

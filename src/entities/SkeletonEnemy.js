@@ -9,7 +9,7 @@ export const SkeletonState = {
 };
 
 export class BoneArrow extends Phaser.Physics.Arcade.Sprite {
-  constructor(scene, x, y, angle, damage = 16) {
+  constructor(scene, x, y, angle, damage = 12) {
     super(scene, x, y, 'bone_arrow');
 
     scene.add.existing(this);
@@ -20,6 +20,7 @@ export class BoneArrow extends Phaser.Physics.Arcade.Sprite {
     this.maxLifespan = 2.4; // seconds
     this.lifeTimer = 0;
     this.hasHit = false;
+    this.angleRad = angle;
 
     this.setScale(1.25);
     this.setRotation(angle);
@@ -27,6 +28,9 @@ export class BoneArrow extends Phaser.Physics.Arcade.Sprite {
     // Slim physics hitbox matching the arrow shaft and head
     this.body.setSize(18, 6);
     this.body.setOffset(7, 2);
+    if (this.body.setAllowGravity) {
+      this.body.setAllowGravity(false);
+    }
 
     this.body.setVelocity(
       Math.cos(angle) * this.speed,
@@ -52,9 +56,30 @@ export class BoneArrow extends Phaser.Physics.Arcade.Sprite {
   update(time, delta) {
     if (this.hasHit) return;
 
+    // Bibehåll kontinuerlig hastighet så varken fysikgrupper eller kollisioner stoppar pilen i luften
+    if (this.body) {
+      this.body.setVelocity(
+        Math.cos(this.angleRad) * this.speed,
+        Math.sin(this.angleRad) * this.speed
+      );
+    }
+
     const dt = delta / 1000;
     this.lifeTimer += dt;
     this.setDepth(this.y + 25);
+
+    // Helkroppsträffkontroll mot riddaren (bröstkorg, huvud och bål, inte bara fötterna)
+    if (this.scene && this.scene.player) {
+      const p = this.scene.player;
+      if (!p.isInvulnerable && p.health > 0 && !p.isDead) {
+        const dx = Math.abs(this.x - p.x);
+        const dy = Math.abs(this.y - (p.y + 6));
+        if (dx <= 24 && dy <= 32) {
+          this.onHitPlayer(p);
+          if (this.hasHit) return;
+        }
+      }
+    }
 
     if (this.lifeTimer >= this.maxLifespan) {
       this.destroyArrow(false);
@@ -126,7 +151,7 @@ export default class SkeletonEnemy extends Phaser.Physics.Arcade.Sprite {
     // Stats & Attributes
     this.maxHealth = 50;
     this.health = 50;
-    this.attackDamage = 16;
+    this.attackDamage = 12;
     this.patrolSpeed = 44;
     this.repositionSpeed = 75;
     this.detectionRadius = 420;
@@ -397,9 +422,17 @@ export default class SkeletonEnemy extends Phaser.Physics.Arcade.Sprite {
     // Spawn arrow projectile
     if (!this.scene.enemyProjectiles) {
       this.scene.enemyProjectiles = this.scene.physics.add.group({ runChildUpdate: true });
+      delete this.scene.enemyProjectiles.defaults.setVelocityX;
+      delete this.scene.enemyProjectiles.defaults.setVelocityY;
     }
     const arrow = new BoneArrow(this.scene, tipX, tipY, this.aimAngle, this.attackDamage);
     this.scene.enemyProjectiles.add(arrow);
+    if (arrow.body) {
+      arrow.body.setVelocity(
+        Math.cos(this.aimAngle) * arrow.speed,
+        Math.sin(this.aimAngle) * arrow.speed
+      );
+    }
 
     // Return to repositioning state and set cooldown
     this.attackCooldownTimer = this.attackCooldown;
@@ -407,6 +440,7 @@ export default class SkeletonEnemy extends Phaser.Physics.Arcade.Sprite {
   }
 
   takeDamage(amount, sourceX, sourceY, customKbForce) {
+    if (this.scene && this.scene.gameState !== 'PLAYING') return;
     if (this.state === SkeletonState.DEAD) return;
 
     this.health = Math.max(0, this.health - amount);

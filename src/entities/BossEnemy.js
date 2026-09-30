@@ -15,39 +15,44 @@ export const BossState = {
 };
 
 export class SpectralOrb extends Phaser.Physics.Arcade.Sprite {
-  constructor(scene, x, y, angle, damage = 22) {
-    super(scene, x, y, 'spectral_orb');
+  constructor(scene, x, y, angle, damage = 15) {
+    const tex = scene.textures.exists('wraith_satellite_orb') ? 'wraith_satellite_orb' : 'spectral_orb';
+    super(scene, x, y, tex);
 
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
     this.damage = damage;
-    this.speed = 270;
-    this.maxLifespan = 2.4;
+    this.speed = 280;
+    this.maxLifespan = 3.2;
     this.lifeTimer = 0;
     this.hasHit = false;
+    this.angleRad = angle;
 
-    this.setScale(1.2);
+    this.setScale(0.48);
     this.setRotation(angle);
-    this.setAlpha(0.95);
+    this.setAlpha(0.98);
     this.setBlendMode(Phaser.BlendModes.ADD);
 
-    this.body.setCircle(10, 2, 2);
-    this.body.setVelocity(
-      Math.cos(angle) * this.speed,
-      Math.sin(angle) * this.speed
-    );
+    if (this.body) {
+      this.body.setAllowGravity(false);
+      this.body.setCircle(20);
+      this.body.setVelocity(
+        Math.cos(angle) * this.speed,
+        Math.sin(angle) * this.speed
+      );
+    }
 
     this.setDepth(y + 30);
 
-    // Cyan frost mist trail
-    this.trail = scene.add.particles(0, 0, 'dust_puff', {
-      speed: { min: 6, max: 20 },
-      scale: { start: 0.5, end: 0 },
-      alpha: { start: 0.6, end: 0 },
-      tint: [0xa5f3fc, 0x38bdf8, 0xc084fc],
+    // Glowing cyan/white bead particle trail
+    const particleTex = scene.textures.exists('wraith_bead_dot') ? 'wraith_bead_dot' : 'dust_puff';
+    this.trail = scene.add.particles(0, 0, particleTex, {
+      speed: { min: 4, max: 18 },
+      scale: { start: 0.28, end: 0 },
+      alpha: { start: 0.85, end: 0 },
       lifespan: 220,
-      frequency: 28,
+      frequency: 24,
       blendMode: 'ADD',
     });
     this.trail.startFollow(this);
@@ -55,7 +60,28 @@ export class SpectralOrb extends Phaser.Physics.Arcade.Sprite {
   }
 
   update(time, delta) {
-    if (this.hasHit) return;
+    if (this.hasHit || !this.active) return;
+
+    // Se till att projektilens hastighet kontinuerligt driver utåt så den aldrig fastnar
+    if (this.body) {
+      this.body.setVelocity(
+        Math.cos(this.angleRad) * this.speed,
+        Math.sin(this.angleRad) * this.speed
+      );
+    }
+
+    // Direkt helkroppskollision mot spelaren för 100% pålitlig träffregistrering
+    if (this.scene && this.scene.player && !this.hasHit) {
+      const p = this.scene.player;
+      if (!p.isInvulnerable && p.health > 0) {
+        const dx = Math.abs(this.x - p.x);
+        const dy = Math.abs(this.y - (p.y + 6));
+        if (dx <= 34 && dy <= 40) {
+          this.onHitPlayer(p);
+          return;
+        }
+      }
+    }
 
     const dt = delta / 1000;
     this.lifeTimer += dt;
@@ -92,10 +118,13 @@ export class SpectralOrb extends Phaser.Physics.Arcade.Sprite {
     }
 
     if (this.scene) {
-      const flash = this.scene.add.circle(this.x, this.y, 14, 0x38bdf8, 0.7);
+      const flash = this.scene.add.circle(this.x, this.y, 28, 0x67e8f9, 0.9);
+      flash.setScale(0.57);
+      flash.setBlendMode(Phaser.BlendModes.ADD);
       this.scene.tweens.add({
         targets: flash,
-        radius: 22,
+        scaleX: 1.0,
+        scaleY: 1.0,
         alpha: 0,
         duration: 180,
         ease: 'Quad.easeOut',
@@ -192,11 +221,13 @@ export class ScreamWave extends Phaser.Physics.Arcade.Sprite {
 }
 
 /**
- * WraithHazardOrb - Placerad fara som landar i arenan och pulserar ut projektiler
+ * WraithHazardOrb - Placerad magisk vålnadskraft i arenan med pulserande blå/vita bollar
+ * Designad exakt efter referensbilden: lysande vitt centrum, virvlande cyanelektricitet
+ * och små blå/vita satellitbollar och pärlor som kontinuerligt pulserar utåt i 6 riktningar.
  */
-export class WraithHazardOrb extends Phaser.Physics.Arcade.Sprite {
+export class WraithHazardOrb extends Phaser.GameObjects.Container {
   constructor(scene, startX, startY, targetX, targetY, boss) {
-    super(scene, startX, startY, 'spectral_orb');
+    super(scene, startX, startY);
 
     this.scene = scene;
     this.boss = boss;
@@ -205,126 +236,450 @@ export class WraithHazardOrb extends Phaser.Physics.Arcade.Sprite {
     this.pulseCount = 0;
     this.maxPulses = 4;
     this.pulseTimer = null;
+    this.streamTimer = null;
     this.hoverTween = null;
+    this.pulseTween = null;
+    this.isDead = false;
+    this.pulseRadiusOffset = 0;
+    this.outwardOrbs = [];
+    this.coreHitCooldown = 0;
 
     scene.add.existing(this);
-    scene.physics.add.existing(this);
-
-    this.setScale(1.8);
-    this.setTint(0x9333ea); // Mörk violett vålnadskraft
-    this.setAlpha(0.95);
-    this.setBlendMode(Phaser.BlendModes.ADD);
-    this.setDepth(targetY + 10);
+    scene.physics.world.enable(this);
 
     if (this.body) {
       this.body.setAllowGravity(false);
       this.body.setImmovable(true);
-      this.body.setSize(26, 26);
+      this.body.setCircle(36, -36, -36);
     }
 
-    // Kastas i en båge från bossen till landningsplatsen
+    this.setDepth(targetY + 10);
+    this.setScale(0.18);
+    this.setAlpha(0.2);
+
+    // 1. Mjukt azurblått omgivningssken på golvet
+    this.glowBg = scene.add.sprite(0, 0, 'soft_cyan_glow');
+    this.glowBg.setScale(1.5).setAlpha(0.5).setBlendMode(Phaser.BlendModes.ADD);
+    this.add(this.glowBg);
+
+    // 2. Yttre virvlande elektriskt plasmavortex (huvudklot)
+    this.coreOrb = scene.add.sprite(0, 0, 'wraith_orb');
+    this.coreOrb.setScale(0.23).setAlpha(0.96).setBlendMode(Phaser.BlendModes.ADD);
+    this.add(this.coreOrb);
+
+    // 3. Inre motroterande filamentlager för dynamisk magisk turbulens
+    this.swirlOrb = scene.add.sprite(0, 0, 'wraith_orb');
+    this.swirlOrb.setScale(0.17).setAlpha(0.72).setBlendMode(Phaser.BlendModes.ADD);
+    this.add(this.swirlOrb);
+
+    // 4. Intensivt kritvitt kärnljus i mitten
+    this.coreFlare = scene.add.circle(0, 0, 11, 0xffffff, 0.95);
+    this.coreFlare.setBlendMode(Phaser.BlendModes.ADD);
+    this.add(this.coreFlare);
+
+    // 5. 6 Radiella armar med blå/vita bollar och pärlor enligt bilden
+    this.armAngles = [
+      -Math.PI / 2,         // ~12:00 (rakt uppåt)
+      -Math.PI * 0.20,      // ~1:30 (uppåt-höger)
+      Math.PI * 0.08,       // ~3:15 (höger)
+      Math.PI * 0.38,       // ~5:15 (nedåt-höger)
+      Math.PI * 0.68,       // ~7:15 (nedåt-vänster)
+      Math.PI * 1.05,       // ~10:00 (vänster)
+    ];
+
+    this.baseRadius = 112; // Avstånd till de yttre satellitbollarna
+    this.arms = [];
+
+    // Bråkdelar för mellanliggande ljuspärlor längs varje arm
+    const beadFractions = [0.40, 0.54, 0.68, 0.82];
+    const beadScales = [0.18, 0.26, 0.22, 0.32];
+
+    for (let i = 0; i < this.armAngles.length; i++) {
+      const angle = this.armAngles[i];
+      const cosA = Math.cos(angle);
+      const sinA = Math.sin(angle);
+
+      // Pärlor längs armen
+      const beads = [];
+      for (let b = 0; b < beadFractions.length; b++) {
+        const dist = this.baseRadius * beadFractions[b];
+        const bead = scene.add.sprite(cosA * dist, sinA * dist, 'wraith_bead_dot');
+        bead.setScale(beadScales[b]).setAlpha(0.92).setBlendMode(Phaser.BlendModes.ADD);
+        this.add(bead);
+        beads.push({
+          sprite: bead,
+          fraction: beadFractions[b],
+          baseScale: beadScales[b],
+        });
+      }
+
+      // Yttre satellitboll (vit kärna med cyan gloria)
+      const sat = scene.add.sprite(cosA * this.baseRadius, sinA * this.baseRadius, 'wraith_satellite_orb');
+      sat.setScale(0.38).setAlpha(0.98).setBlendMode(Phaser.BlendModes.ADD);
+      this.add(sat);
+
+      this.arms.push({
+        angle,
+        cosA,
+        sinA,
+        satellite: sat,
+        beads,
+      });
+    }
+
+    // Kasta orben i en parabelbåge till målet
     scene.tweens.add({
       targets: this,
       x: targetX,
       y: targetY,
-      scaleX: 2.2,
-      scaleY: 2.2,
+      scaleX: 1,
+      scaleY: 1,
+      alpha: 1,
       duration: 650,
       ease: 'Quad.easeOut',
       onComplete: () => {
         this.onLand();
       },
     });
+
+    // Kontinuerlig uppdatering för rotation, pulsering och skadekontroll
+    this.updateHandler = (time, delta) => this.onTick(time, delta);
+    scene.events.on(Phaser.Scenes.Events.UPDATE, this.updateHandler);
   }
 
   onLand() {
-    if (!this.active || !this.scene) return;
+    if (this.isDead || !this.scene) return;
 
     // Landningsring på golvet
-    const landingRing = this.scene.add.circle(this.x, this.y, 8, 0xa855f7, 0.65);
+    const landingRing = this.scene.add.circle(this.x, this.y, 70, 0x38bdf8, 0.85);
+    landingRing.setScale(0.14);
+    landingRing.setBlendMode(Phaser.BlendModes.ADD);
     landingRing.setDepth(this.depth - 1);
     this.scene.tweens.add({
       targets: landingRing,
-      radius: 50,
+      scaleX: 1.0,
+      scaleY: 1.0,
       alpha: 0,
-      duration: 500,
+      duration: 550,
       ease: 'Cubic.easeOut',
       onComplete: () => landingRing.destroy(),
     });
 
-    // Svallande svävning över marken
+    // Eterisk svävning över marken
     this.hoverTween = this.scene.tweens.add({
       targets: this,
-      y: this.targetY - 10,
-      duration: 600,
+      y: this.targetY - 12,
+      duration: 750,
       yoyo: true,
       repeat: -1,
       ease: 'Sine.easeInOut',
     });
 
-    // Starta pulseringar
-    this.scheduleNextPulse(450);
+    // Rytmisk pulsering av armarnas avstånd
+    this.pulseTween = this.scene.tweens.add({
+      targets: this,
+      pulseRadiusOffset: 14,
+      duration: 650,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+
+    // Kontinuerlig ström av blå/vita energipärlor som pulserar ut från mitten
+    this.streamTimer = this.scene.time.addEvent({
+      delay: 520,
+      callback: () => this.pulseEnergyWave(),
+      loop: true,
+    });
+
+    // Starta attackpulser
+    this.scheduleNextPulse(480);
+  }
+
+  /**
+   * Pulserar ut små blå/vita bollar från centrum och låter dem färdas långt ut i arenan
+   */
+  pulseEnergyWave() {
+    if (this.isDead || !this.scene || !this.scene.tweens) return;
+
+    for (let i = 0; i < this.arms.length; i++) {
+      const arm = this.arms[i];
+      const startDist = 34;
+      const endDist = 360; // Färdas långt utåt i arenan så de inte stannar eller fastnar!
+
+      // Glödande blå/vit satellitboll som skjuts utåt
+      const pOrb = this.scene.add.sprite(
+        arm.cosA * startDist,
+        arm.sinA * startDist,
+        'wraith_satellite_orb'
+      );
+      pOrb.setScale(0.18).setAlpha(0.95).setBlendMode(Phaser.BlendModes.ADD);
+      this.add(pOrb);
+      this.outwardOrbs.push({ sprite: pOrb, isOrb: true });
+
+      this.scene.tweens.add({
+        targets: pOrb,
+        x: arm.cosA * endDist,
+        y: arm.sinA * endDist,
+        scaleX: 0.38,
+        scaleY: 0.38,
+        alpha: 0,
+        duration: 850,
+        ease: 'Quad.easeOut',
+        onComplete: () => {
+          if (pOrb.active) pOrb.destroy();
+        },
+      });
+
+      // Ljuspärla som följer med i partikelutströmningen
+      const pBead = this.scene.add.sprite(
+        arm.cosA * (startDist + 14),
+        arm.sinA * (startDist + 14),
+        'wraith_bead_dot'
+      );
+      pBead.setScale(0.22).setAlpha(0.9).setBlendMode(Phaser.BlendModes.ADD);
+      this.add(pBead);
+      this.outwardOrbs.push({ sprite: pBead, isOrb: false });
+
+      this.scene.tweens.add({
+        targets: pBead,
+        x: arm.cosA * (endDist * 0.75),
+        y: arm.sinA * (endDist * 0.75),
+        scaleX: 0.32,
+        scaleY: 0.32,
+        alpha: 0,
+        duration: 750,
+        ease: 'Quad.easeOut',
+        onComplete: () => {
+          if (pBead.active) pBead.destroy();
+        },
+      });
+    }
+  }
+
+  onTick(time, delta) {
+    if (this.isDead || !this.scene) return;
+
+    // 1. Hypnotisk rotation av vortexfilamenten
+    if (this.coreOrb && this.coreOrb.active) {
+      this.coreOrb.rotation += 0.007;
+    }
+    if (this.swirlOrb && this.swirlOrb.active) {
+      this.swirlOrb.rotation -= 0.011;
+    }
+
+    // 2. Uppdatera satelliter och pärlor dynamiskt efter pulseringsavstånd
+    const currentR = this.baseRadius + this.pulseRadiusOffset;
+    for (let i = 0; i < this.arms.length; i++) {
+      const arm = this.arms[i];
+      arm.satellite.x = arm.cosA * currentR;
+      arm.satellite.y = arm.sinA * currentR;
+      arm.satellite.setScale(0.36 + (this.pulseRadiusOffset / 14) * 0.08);
+
+      for (let b = 0; b < arm.beads.length; b++) {
+        const beadData = arm.beads[b];
+        const d = currentR * beadData.fraction;
+        beadData.sprite.x = arm.cosA * d;
+        beadData.sprite.y = arm.sinA * d;
+        beadData.sprite.setScale(beadData.baseScale * (1 + (this.pulseRadiusOffset / 14) * 0.2));
+      }
+    }
+
+    // 3. Träffkontroll mot spelaren för ALLA utåtpasserande orber och pärlor (15 skada)
+    if (this.scene.player && !this.scene.player.isInvulnerable && this.scene.player.health > 0) {
+      const p = this.scene.player;
+      const px = p.x;
+      const py = p.y + 6; // Spelarens riddarkroppscentrum
+
+      // Gå igenom alla utåtpasserande orber och pärlor
+      for (let i = this.outwardOrbs.length - 1; i >= 0; i--) {
+        const item = this.outwardOrbs[i];
+        if (!item.sprite || !item.sprite.active) {
+          this.outwardOrbs.splice(i, 1);
+          continue;
+        }
+
+        const worldX = this.x + item.sprite.x;
+        const worldY = this.y + item.sprite.y;
+
+        const dx = Math.abs(worldX - px);
+        const dy = Math.abs(worldY - py);
+
+        // Generös helkroppsträffruta för riddaren (34x40 px för orber, 26x32 px för pärlor)
+        const hitLimitX = item.isOrb ? 34 : 26;
+        const hitLimitY = item.isOrb ? 40 : 32;
+
+        if (dx <= hitLimitX && dy <= hitLimitY) {
+          const damaged = p.takeDamage(15);
+          if (damaged) {
+            // Skapa effektfull cyanblixt vid träff
+            const flash = this.scene.add.circle(worldX, worldY, 30, 0x67e8f9, 0.95);
+            flash.setScale(0.6);
+            flash.setBlendMode(Phaser.BlendModes.ADD);
+            this.scene.tweens.add({
+              targets: flash,
+              scaleX: 1.0,
+              scaleY: 1.0,
+              alpha: 0,
+              duration: 180,
+              ease: 'Quad.easeOut',
+              onComplete: () => flash.destroy(),
+            });
+
+            item.sprite.destroy();
+            this.outwardOrbs.splice(i, 1);
+          }
+        }
+      }
+
+      // Huvudklotet i centrum (15 skada med 0.6s cooldown)
+      if (this.coreHitCooldown > 0) {
+        this.coreHitCooldown -= delta / 1000;
+      } else {
+        const distCenter = Phaser.Math.Distance.Between(this.x, this.y, px, py);
+        if (distCenter <= 52) {
+          p.takeDamage(15);
+          this.coreHitCooldown = 0.6;
+        }
+      }
+
+      // De roterande satellitbollarna i banan
+      for (let i = 0; i < this.arms.length; i++) {
+        const satWorldX = this.x + this.arms[i].satellite.x;
+        const satWorldY = this.y + this.arms[i].satellite.y;
+        const dx = Math.abs(satWorldX - px);
+        const dy = Math.abs(satWorldY - py);
+        if (dx <= 32 && dy <= 38) {
+          if (this.coreHitCooldown <= 0) {
+            p.takeDamage(15);
+            this.coreHitCooldown = 0.6;
+          }
+          break;
+        }
+      }
+    }
   }
 
   scheduleNextPulse(delay) {
-    if (!this.active || !this.scene || !this.scene.time) return;
+    if (this.isDead || !this.scene || !this.scene.time) return;
 
     this.pulseTimer = this.scene.time.delayedCall(delay, () => {
-      if (!this.active || !this.scene) return;
+      if (this.isDead || !this.scene) return;
       this.emitPulse();
     });
   }
 
   emitPulse() {
+    if (this.isDead || !this.scene) return;
     this.pulseCount++;
 
-    // Visuell expansionschockvåg
-    const pulseRing = this.scene.add.circle(this.x, this.y, 14, 0x38bdf8, 0.7);
+    // 1. Visuell expansionschockvåg av cyanfärgat ljus
+    const pulseRing = this.scene.add.circle(this.x, this.y, 95, 0x38bdf8, 0.85);
+    pulseRing.setScale(0.17);
+    pulseRing.setBlendMode(Phaser.BlendModes.ADD);
     pulseRing.setDepth(this.depth - 1);
     this.scene.tweens.add({
       targets: pulseRing,
-      radius: 70,
+      scaleX: 1.0,
+      scaleY: 1.0,
       alpha: 0,
-      duration: 450,
+      duration: 480,
       ease: 'Quad.easeOut',
       onComplete: () => pulseRing.destroy(),
     });
 
-    // Huvudklotet sväller upp
+    // 2. Centrala klotet sväller upp kraftigt och blixtrar till
     this.scene.tweens.add({
-      targets: this,
-      scaleX: 2.7,
-      scaleY: 2.7,
-      duration: 130,
+      targets: [this.coreOrb, this.swirlOrb],
+      scaleX: 0.31,
+      scaleY: 0.31,
+      duration: 140,
       yoyo: true,
       ease: 'Back.easeOut',
     });
+    this.scene.tweens.add({
+      targets: this.coreFlare,
+      scaleX: 1.8,
+      scaleY: 1.8,
+      alpha: 1,
+      duration: 140,
+      yoyo: true,
+      ease: 'Quad.easeOut',
+    });
 
-    // Skjut ut mindre projektiler i roterande stjärnmönster
-    const numProjectiles = 6;
-    const angleOffset = (this.pulseCount * Math.PI) / 6;
+    // 3. Satelliterna pulserar ut och blixtrar till
+    for (let i = 0; i < this.arms.length; i++) {
+      this.scene.tweens.add({
+        targets: this.arms[i].satellite,
+        scaleX: 0.58,
+        scaleY: 0.58,
+        duration: 140,
+        yoyo: true,
+        ease: 'Quad.easeOut',
+      });
+    }
 
-    for (let i = 0; i < numProjectiles; i++) {
-      const angle = angleOffset + (i * (Math.PI * 2) / numProjectiles);
-      const orb = new SpectralOrb(this.scene, this.x, this.y, angle, 16);
-      orb.setScale(0.85);
+    // 4. Skjut ut blå/vita bollar (SpectralOrb) längs de 6 armarnas riktning
+    const angleOffset = (this.pulseCount * Math.PI) / 12;
+    for (let i = 0; i < this.arms.length; i++) {
+      const angle = this.arms[i].angle + angleOffset;
+      const spawnX = this.x + Math.cos(angle) * 55;
+      const spawnY = this.y + Math.sin(angle) * 55;
+      const orb = new SpectralOrb(this.scene, spawnX, spawnY, angle, 15);
       if (this.scene.enemyProjectiles) {
         this.scene.enemyProjectiles.add(orb);
+      }
+      if (orb.body) {
+        orb.body.setAllowGravity(false);
+        orb.body.setVelocity(
+          Math.cos(angle) * orb.speed,
+          Math.sin(angle) * orb.speed
+        );
       }
     }
 
     if (this.pulseCount < this.maxPulses) {
       this.scheduleNextPulse(1150); // Nästa puls efter 1.15s
     } else {
-      // Alla pulser avfyrade: tona bort och förstör
+      // Alla pulser avfyrade: implodera och förstör
       this.scene.time.delayedCall(700, () => {
-        if (!this.active) return;
+        if (this.isDead || !this.scene) return;
+        this.isDead = true;
+
+        // Satelliter och pärlor sugs in mot centrum
+        for (let i = 0; i < this.arms.length; i++) {
+          const arm = this.arms[i];
+          this.scene.tweens.add({
+            targets: arm.satellite,
+            x: 0,
+            y: 0,
+            scaleX: 0,
+            scaleY: 0,
+            alpha: 0,
+            duration: 350,
+            ease: 'Back.easeIn',
+          });
+          for (let b = 0; b < arm.beads.length; b++) {
+            this.scene.tweens.add({
+              targets: arm.beads[b].sprite,
+              x: 0,
+              y: 0,
+              scaleX: 0,
+              scaleY: 0,
+              alpha: 0,
+              duration: 300,
+              ease: 'Back.easeIn',
+            });
+          }
+        }
+
+        // Huvudklotet krymper och försvinner
         this.scene.tweens.add({
           targets: this,
           scaleX: 0,
           scaleY: 0,
           alpha: 0,
-          duration: 350,
+          duration: 380,
           ease: 'Back.easeIn',
           onComplete: () => this.destroy(),
         });
@@ -333,8 +688,57 @@ export class WraithHazardOrb extends Phaser.Physics.Arcade.Sprite {
   }
 
   destroy(fromScene) {
-    if (this.hoverTween) this.hoverTween.stop();
-    if (this.pulseTimer) this.pulseTimer.remove();
+    this.isDead = true;
+    if (this.scene) {
+      if (this.updateHandler) {
+        this.scene.events.off(Phaser.Scenes.Events.UPDATE, this.updateHandler);
+      }
+      if (this.scene.tweens) {
+        this.scene.tweens.killTweensOf(this);
+        if (this.coreFlare) this.scene.tweens.killTweensOf(this.coreFlare);
+        if (this.coreOrb) this.scene.tweens.killTweensOf(this.coreOrb);
+        if (this.swirlOrb) this.scene.tweens.killTweensOf(this.swirlOrb);
+        if (this.glowBg) this.scene.tweens.killTweensOf(this.glowBg);
+        if (this.arms) {
+          for (let i = 0; i < this.arms.length; i++) {
+            const arm = this.arms[i];
+            if (arm.satellite) this.scene.tweens.killTweensOf(arm.satellite);
+            if (arm.beads) {
+              for (let b = 0; b < arm.beads.length; b++) {
+                if (arm.beads[b].sprite) this.scene.tweens.killTweensOf(arm.beads[b].sprite);
+              }
+            }
+          }
+        }
+      }
+    }
+    if (this.hoverTween) {
+      this.hoverTween.stop();
+      this.hoverTween = null;
+    }
+    if (this.pulseTween) {
+      this.pulseTween.stop();
+      this.pulseTween = null;
+    }
+    if (this.pulseTimer) {
+      this.pulseTimer.remove();
+      this.pulseTimer = null;
+    }
+    if (this.streamTimer) {
+      this.streamTimer.remove();
+      this.streamTimer = null;
+    }
+    if (this.outwardOrbs) {
+      for (let i = 0; i < this.outwardOrbs.length; i++) {
+        if (this.outwardOrbs[i].sprite && this.outwardOrbs[i].sprite.active) {
+          if (this.scene && this.scene.tweens) {
+            this.scene.tweens.killTweensOf(this.outwardOrbs[i].sprite);
+          }
+          this.outwardOrbs[i].sprite.destroy();
+        }
+      }
+      this.outwardOrbs = [];
+    }
     super.destroy(fromScene);
   }
 }
@@ -769,7 +1173,8 @@ export default class BossEnemy extends Phaser.Physics.Arcade.Sprite {
     breathRing.setDepth(this.depth - 1);
     this.scene.tweens.add({
       targets: breathRing,
-      radius: 10,
+      scaleX: 0.1,
+      scaleY: 0.1,
       alpha: 0.05,
       duration: 780,
       ease: 'Quad.easeIn',
@@ -893,11 +1298,13 @@ export default class BossEnemy extends Phaser.Physics.Arcade.Sprite {
       ease: 'Quad.easeInOut',
     });
 
-    const beacon = this.scene.add.circle(this.x, this.y, 20, 0x38bdf8, 0.5);
+    const beacon = this.scene.add.circle(this.x, this.y, 90, 0x38bdf8, 0.5);
+    beacon.setScale(0.22);
     beacon.setDepth(this.depth - 1);
     this.scene.tweens.add({
       targets: beacon,
-      radius: 90,
+      scaleX: 1.0,
+      scaleY: 1.0,
       alpha: 0,
       duration: 1000,
       ease: 'Quad.easeIn',
@@ -968,11 +1375,14 @@ export default class BossEnemy extends Phaser.Physics.Arcade.Sprite {
       // Eruption & Detonation!
       this.scene.cameras.main.shake(300, 0.014);
 
-      const blastRing = this.scene.add.circle(this.x, this.y, circleRadius, 0xf43f5e, 0.85);
+      const targetRadius = circleRadius + 40;
+      const blastRing = this.scene.add.circle(this.x, this.y, targetRadius, 0xf43f5e, 0.85);
+      blastRing.setScale(circleRadius / targetRadius);
       blastRing.setDepth(this.depth - 1);
       this.scene.tweens.add({
         targets: blastRing,
-        radius: circleRadius + 40,
+        scaleX: 1.0,
+        scaleY: 1.0,
         alpha: 0,
         duration: 300,
         ease: 'Cubic.easeOut',
@@ -1006,6 +1416,7 @@ export default class BossEnemy extends Phaser.Physics.Arcade.Sprite {
   }
 
   takeDamage(amount, sourceX, sourceY) {
+    if (this.scene && this.scene.gameState !== 'PLAYING') return;
     if (this.state === BossState.DEAD) return;
 
     // Wake up immediately if damaged while dormant
@@ -1090,6 +1501,19 @@ export default class BossEnemy extends Phaser.Physics.Arcade.Sprite {
     this.state = BossState.DEAD;
     this.body.setVelocity(0, 0);
     this.body.enable = false;
+
+    // Rensa och avbryt aktiv WraithHazardOrb omedelbart så att inga aktiva pulser eller tweens kraschar
+    if (this.activeHazardOrb) {
+      if (this.activeHazardOrb.active) {
+        this.activeHazardOrb.destroy();
+      }
+      this.activeHazardOrb = null;
+    }
+
+    if (this.dangerCircleGfx && this.dangerCircleGfx.active) {
+      this.dangerCircleGfx.destroy();
+      this.dangerCircleGfx = null;
+    }
 
     // Camera rumble on boss defeat
     this.scene.cameras.main.shake(1000, 0.015);

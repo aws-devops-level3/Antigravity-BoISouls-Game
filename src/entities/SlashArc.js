@@ -89,7 +89,7 @@ export default class SlashArc extends Phaser.Physics.Arcade.Sprite {
   }
 
   checkCollisions() {
-    if (!this.active || !this.scene) return;
+    if (!this.active || !this.scene || this.scene.gameState !== 'PLAYING') return;
 
     const weapon = this.weapon;
     const maxRange = (weapon && weapon.range) || COMBAT_CONFIG.attackRange || 85;

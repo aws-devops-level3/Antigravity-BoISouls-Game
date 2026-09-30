@@ -38,14 +38,28 @@ export default class BootScene extends Phaser.Scene {
       frameHeight: 360,
     });
     this.load.image('spectral_orb', '/assets/spectral_orb.png');
+    this.load.image('wraith_orb', '/assets/wraith_orb.png');
+    this.load.image('wraith_satellite_orb', '/assets/wraith_satellite_orb.png');
+    this.load.image('wraith_bead_dot', '/assets/wraith_bead_dot.png');
     this.load.image('chicken_npc', '/assets/chicken.png');
     this.load.image('cat_pumba', '/assets/cat_pumba.png');
+    this.load.image('treasure_chest', '/assets/treasure_chest.png');
+    this.load.image('greg_gravekeeper', '/assets/greg_gravekeeper.png');
+    this.load.image('title_logo', '/assets/title_logo.png');
     this.load.audio('chicken_squawk', encodeURI('/assets/sounds/Chicken sounds hen clucking (1).mp3'));
     this.load.audio('chicken_cluck', encodeURI('/assets/sounds/Chicken sounds hen clucking (1).mp3'));
     this.load.audio('blood_splat', '/assets/sounds/blood_splat.wav');
     this.load.audio('flask_drink', '/assets/sounds/flask_drink.wav');
-    // Bakgrundsmusik definierad i src/data/AudioConfig.js (med cache-busting så nya mp3-filer alltid laddas färska)
+    // Ljudeffekter & musik (med cache-busting så nya ljudfiler alltid laddas färska utan att webbläsaren återanvänder gamla HTML-svar)
     const cacheBust = `?t=${Date.now()}`;
+    this.load.audio('ghost_sound', [
+      encodeURI('/assets/sounds/GhostSound.mp3') + cacheBust,
+      encodeURI('/GhostSound.mp3') + cacheBust,
+    ]);
+    this.load.audio('GhostSound', [
+      encodeURI('/assets/sounds/GhostSound.mp3') + cacheBust,
+      encodeURI('/GhostSound.mp3') + cacheBust,
+    ]);
     if (AUDIO_CONFIG && AUDIO_CONFIG.bgm && AUDIO_CONFIG.bgm.path) {
       this.load.audio(AUDIO_CONFIG.bgm.key, encodeURI(AUDIO_CONFIG.bgm.path) + cacheBust);
     }
@@ -120,6 +134,15 @@ export default class BootScene extends Phaser.Scene {
     }
     if (this.textures.exists('spectral_orb')) {
       this.textures.get('spectral_orb').setFilter(Phaser.Textures.FilterMode.LINEAR);
+    }
+    if (this.textures.exists('wraith_orb')) {
+      this.textures.get('wraith_orb').setFilter(Phaser.Textures.FilterMode.LINEAR);
+    }
+    if (this.textures.exists('wraith_satellite_orb')) {
+      this.textures.get('wraith_satellite_orb').setFilter(Phaser.Textures.FilterMode.LINEAR);
+    }
+    if (this.textures.exists('wraith_bead_dot')) {
+      this.textures.get('wraith_bead_dot').setFilter(Phaser.Textures.FilterMode.LINEAR);
     }
     if (this.textures.exists('cat_pumba')) {
       this.textures.get('cat_pumba').setFilter(Phaser.Textures.FilterMode.LINEAR);

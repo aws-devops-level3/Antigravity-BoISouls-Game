@@ -273,6 +273,7 @@ export default class SoulsHUD {
   }
 
   update(player) {
+    if (this.visible === false) return;
     this.graphics.clear();
 
     const startX = 32;
@@ -375,6 +376,17 @@ export default class SoulsHUD {
     // Classic Soulsborne metallic border
     this.graphics.lineStyle(1.5, 0x7c694a, 0.8);
     this.graphics.strokeRect(x - 1, y - 1, maxWidth + 2, height + 2);
+  }
+
+  setVisible(visible) {
+    this.visible = visible;
+    if (this.graphics) {
+      this.graphics.setVisible(visible);
+      if (!visible) this.graphics.clear();
+    }
+    if (this.soulContainer) this.soulContainer.setVisible(visible);
+    if (this.estusContainer) this.estusContainer.setVisible(visible);
+    if (this.weaponContainer) this.weaponContainer.setVisible(visible);
   }
 
   destroy() {

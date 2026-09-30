@@ -77,6 +77,13 @@ export const LEVELS = {
       { x: 1420, y: 1150 },
       { x: 800,  y: 720 },
     ],
+    chests: [
+      { x: 744, y: 384, width: 48, height: 31, name: 'Förbannad Kista' },
+    ],
+    // Vänliga NPCs på kyrkogården
+    npcs: [
+      { name: 'GREG THE GRAVEKEEPER', type: 'gravekeeper', x: 522, y: 732, width: 80, height: 55 },
+    ],
   },
 
   SoulsBossRoom1: {

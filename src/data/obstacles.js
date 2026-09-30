@@ -935,6 +935,13 @@ export const MAP_OBSTACLES = {
         "height": 21
       },
       {
+        "x": 744,
+        "y": 384,
+        "width": 48,
+        "height": 31,
+        "name": "Kista"
+      },
+      {
         "x": 625,
         "y": 484,
         "width": 179,
